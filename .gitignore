@@ -1,0 +1,37 @@
+# Zig build artifacts
+zig-out/
+zig-cache/
+.zig-cache/
+
+# Training artifacts — exercise answers and work product (not indexed by RAG)
+artifacts/
+
+# Dev-only materials (research docs, reference books, ACE framework)
+docs/
+
+# Third-party tools (except submodules)
+opt/*
+!opt/local-rag
+
+# Claude config (allow zig-expert skill through)
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/zig-*/
+
+# MCP config
+!.mcp.json
+
+# RAG symlinks (created by .envrc.d/ragling.sh)
+rag/
+
+# Agent scratch space
+MEMORY.md
+.zig-expert.md
+
+# nix/direnv
+.direnv/
+.envrc.local.d/
+
+# macOS
+.DS_Store

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "ragling": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory", "opt/local-rag",
+        "ragling",
+        "--config", "../../.claude/skills/zig-expert/ragling.json",
+        "serve"
+      ]
+    }
+  }
+}

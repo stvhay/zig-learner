@@ -1,0 +1,14 @@
+2025-01-15 INFO  Server started on port 8080
+2025-01-15 DEBUG Loaded 42 configuration entries
+2025-01-15 INFO  Connected to database
+2025-01-15 WARN  Slow query detected: 1523ms
+2025-01-15 ERROR Failed to connect to cache server
+2025-01-15 INFO  Request from 192.168.1.100: GET /api/users
+2025-01-15 DEBUG Query executed in 12ms
+2025-01-15 ERROR Timeout waiting for upstream response
+2025-01-15 INFO  Request from 10.0.0.5: POST /api/login
+2025-01-15 INFO  Health check passed
+2025-01-15 WARN  Memory usage at 85%
+2025-01-15 ERROR Out of memory allocating 1048576 bytes
+2025-01-15 INFO  Graceful shutdown initiated
+2025-01-15 INFO  Server stopped

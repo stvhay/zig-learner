@@ -1,0 +1,14 @@
+{
+  "ollama_host": "https://ollama.st5ve.com",
+  "db_path": "~/.ragling/zig-expert/rag.db",
+  "shared_db_path": "~/.ragling/zig-expert/doc_store.sqlite",
+  "embedding_model": "bge-m3",
+  "embedding_dimensions": 1024,
+  "chunk_size_tokens": 256,
+  "search_defaults": {
+    "top_k": 10,
+    "rrf_k": 60,
+    "vector_weight": 0.7,
+    "fts_weight": 0.3
+  }
+}

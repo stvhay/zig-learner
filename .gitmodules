@@ -1,0 +1,3 @@
+[submodule "opt/local-rag"]
+	path = opt/local-rag
+	url = https://github.com/aihaysteve/local-rag.git

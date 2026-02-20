@@ -1,0 +1,10 @@
+first line
+second line
+
+fourth line after blank
+
+sixth line after blank
+seventh line
+eighth line
+
+tenth line after blank
