@@ -50,7 +50,7 @@ Each lesson follows this cycle:
    - Identify patterns that led to clean passes; verify the skill documents them
    - Flag skill entries that seem wrong or stale
 3. **Skill update** — Capture new knowledge into the skill. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing — it defines structure, CSO, and quality standards.
-4. **Commit** — Commit skill updates, new quizzes, and grade records atomically.
+4. **Commit** — Commit per the Commit Strategy below (one lesson commit with GRADES.md + SKILL.md changes together).
 
 ### Output Directories
 
@@ -78,13 +78,29 @@ Every 20 lessons, a comprehensive exam covers all topics from the preceding 20 l
 
 Grades are documented in `GRADES.md` within each lesson plan directory (see Lesson Plans section above).
 
+### Commit Strategy
+
+There are two separate commit streams — keep them apart:
+
+**Lesson commits** (learning progress):
+- **One commit per lesson** — after completing the lesson cycle (attempt, reflection, skill update), commit the GRADES.md update and any SKILL.md / reference changes together. This is the "atomic commit" from the lesson cycle.
+- **End-of-plan commit** — if the final self-evaluation report at the end of a lesson plan produces additional skill updates beyond the last lesson's commit, that gets its own commit.
+- Commit messages should reference the lesson (e.g., `Lesson 02 Hex Dump: 55/60 (A)`).
+
+**Infrastructure commits** (changes to the learning mechanism itself):
+- Changes to CLAUDE.md, lesson plan structure, quiz specifications, RAG config, build tooling, `.envrc`, submodule patches, or any other scaffolding.
+- These must be committed separately from lesson work, even if discovered mid-lesson. Finish the lesson commit first, then commit infrastructure changes.
+- Commit messages should describe the infrastructure change, not the lesson context.
+
+Never mix the two streams in a single commit.
+
 ### Subagent Coordination
 
 When using subagents (Task tool) for lessons:
 
 1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) architecturally cannot use MCP tools. Lesson subagents must run in **foreground** to access RAG. MCP tools are allowlisted in `.claude/settings.local.json` so they don't require per-call prompting.
 2. **Skill update is mandatory** — The subagent prompt must explicitly require SKILL.md updates when mistakes are found. The agent must not just *recommend* updates in GRADES.md — it must *make* them. Include: "You MUST edit SKILL.md if you discover any gap or error."
-3. **Atomic commits** — The commit must include both GRADES.md and any SKILL.md changes together.
+3. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
 4. **RAG usage** — The subagent should use `mcp__ragling__rag_search` to look up API details, pitfalls, and patterns *during* exercises, not just before. Search before coding each exercise if unsure about an API.
 
 ## Self-Update Protocol
