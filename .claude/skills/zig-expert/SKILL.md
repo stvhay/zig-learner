@@ -215,6 +215,8 @@ Training is organized into **lesson plans** in `src/lesson-plans/`. Each plan is
 
 **Execution:** Work through lessons in order. Grade each, reflect, update skill. After completing a plan, write a final self-evaluation report. Record grades in `GRADES.md` within the plan directory.
 
+**Token efficiency:** Minimize token waste — read the quiz once (not per-exercise), batch difficulty-1 exercises, use RAG instead of full file reads. Record estimated token usage in GRADES.md for each lesson (total tokens, tool calls, tokens/exercise) to track learning throughput.
+
 **Creating plans:** Add a numbered directory with lesson entries. The agent can create new plans autonomously.
 
 ## Validation

@@ -78,6 +78,21 @@ Every 20 lessons, a comprehensive exam covers all topics from the preceding 20 l
 
 Grades are documented in `GRADES.md` within each lesson plan directory (see Lesson Plans section above).
 
+### Token Efficiency
+
+Token usage is an explicit performance objective. The agent should:
+
+1. **Minimize redundant reads** — read the quiz section once, not per-exercise. Read SKILL.md once at the start.
+2. **Use RAG, not full file reads** — a targeted `rag_search` returns ~10 relevant chunks; reading full reference files wastes 500k+ tokens.
+3. **Batch simple exercises** — difficulty-1 exercises (5 pts) with similar patterns can be written in quick succession without re-reading the spec for each.
+4. **Record token usage in GRADES.md** — every lesson's grade record must include a "## Token Usage" section with:
+   - Estimated total tokens consumed (input + output)
+   - Number of tool calls
+   - Tokens per exercise (total / exercise count)
+   - Comparison to previous lessons (improving, stable, or regressing?)
+
+   This establishes a baseline for optimizing learning throughput per token.
+
 ### Commit Strategy
 
 There are two separate commit streams — keep them apart:
