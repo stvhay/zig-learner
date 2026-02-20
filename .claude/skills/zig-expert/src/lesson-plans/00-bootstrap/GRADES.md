@@ -148,3 +148,90 @@ None. Zero compile failures across all 25 exercises.
 ### Skill knowledge base updates needed
 
 No gaps discovered. The skill KB correctly documented all APIs tested in this lesson. The Lesson 01 learnings about defer/errdefer LIFO and ArrayList allocator patterns were successfully internalized and applied.
+
+---
+
+# Lesson 03: Error Handling & Allocator Patterns -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Error sets - declaration and named error sets | 5 | 0 | 5 | A |
+| 2 | Error sets - anonymous (inferred) error sets | 5 | 0 | 5 | A |
+| 3 | Error sets - merging with \|\| | 5 | 0 | 5 | A |
+| 4 | Error sets - @errorName runtime introspection | 5 | 0 | 5 | A |
+| 5 | Error sets - @intFromError and numeric identity | 5 | 0 | 5 | A |
+| 6 | Error unions - basic ErrorSet!T and try | 5 | 0 | 5 | A |
+| 7 | Error unions - catch with fallback value | 5 | 0 | 5 | A |
+| 8 | Error unions - catch with error payload | 5 | -1 (compile fail) | 4 | B |
+| 9 | Error unions - if-else error unwrap | 5 | 0 | 5 | A |
+| 10 | errdefer - basic cleanup on error path | 5 | 0 | 5 | A |
+| 11 | errdefer - ordering (LIFO relative to defer) | 5 | -5 (test fail) | 0 | F |
+| 12 | errdefer - \|err\| capture in function scope | 5 | 0 | 5 | A |
+| 13 | Error handling in loops - break on error with cleanup | 5 | 0 | 5 | A |
+| 14 | Error handling in loops - partial initialization cleanup | 5 | 0 | 5 | A |
+| 15 | FixedBufferAllocator - stack-based allocation | 10 | 0 | 10 | A |
+| 16 | FixedBufferAllocator - reset for reuse | 10 | 0 | 10 | A |
+| 17 | ArenaAllocator - init, alloc, deinit, no frees | 10 | 0 | 10 | A |
+| 18 | ArenaAllocator - reset modes (retain/free_all) | 10 | 0 | 10 | A |
+| 19 | FailingAllocator - fail at specific index | 10 | 0 | 10 | A |
+| 20 | FailingAllocator - allocation stats tracking | 10 | 0 | 10 | A |
+| 21 | checkAllAllocationFailures - exhaustive OOM testing | 10 | 0 | 10 | A |
+| 22 | Error set merging in multi-layer functions | 10 | 0 | 10 | A |
+| 23 | StackFallbackAllocator - stack-first with heap fallback | 10 | 0 | 10 | A |
+| 24 | Custom allocator - VTable implementation | 20 | 0 | 20 | A |
+| 25 | Allocator composition - arena over fixed buffer + OOM | 20 | 0 | 20 | A |
+| **TOTAL** | | **200** | **-6** | **194** | **A** |
+
+**Overall: 194/200 = 97% = A**
+
+## Detailed Notes
+
+### Exercise 8: catch with error payload (1 compile failure, -1 pt)
+
+**Compile failure #1 (-1 pt, new mistake):** First attempt had a catch block returning `u32` values while the error union's success type was `[]const u8`. The catch block's return type must match the success type of the error union (peer type resolution). Fixed by returning string values instead of integer error codes.
+
+**Root cause:** Wrote the test logic thinking about HTTP status codes (403, 404) but the function returned strings. Type mismatch between the function's success type and the catch block's return type.
+
+### Exercise 11: errdefer ordering (test failure, -100%)
+
+**Test failure (-100%):** The approach was fundamentally flawed. I tried to observe defer execution order by returning `buf[0..idx]` from the function. However, **defers execute after the return expression is evaluated** -- so at the point the return value's slice length was captured, `idx` was still 0. The returned slice was empty.
+
+**Key lesson learned:** Defers run after the return value is captured. You cannot observe defer side effects through a function's return value. To observe defer execution order, you must use external state (e.g., pointers to mutable variables outside the function scope, or global/module-level state).
+
+**Skill KB update:** Added timing note to SKILL.md's defer/errdefer documentation: "defers execute *after* the return expression is evaluated -- you cannot observe their side effects through a function's return value."
+
+### All Other Exercises: Clean Pass
+
+23 out of 25 exercises passed on the first compile and first test run with zero deductions. All allocator exercises (15-25), including the 20-point custom VTable and composition exercises, were handled correctly on the first attempt.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| 8 | 1 | incompatible types: `[]const u8` and `u32` | catch block return type must match error union success type | No (basic type consistency) |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+1. **Type mismatch in catch blocks**: The catch block must produce the same type as the error union's success type. When the function returns `ErrorSet![]const u8`, the catch block must also return `[]const u8`, not a numeric type. This is basic peer type resolution but easy to overlook when mentally modeling error codes as integers.
+
+### Patterns that caused test failures
+1. **Defer timing vs return values**: Attempted to observe defer execution order through a function's return value. Defers run *after* the return expression is evaluated, so the return value cannot capture defer side effects. The correct approach is to use external mutable state (pointers or module-level variables). This gap has been added to the skill KB.
+
+### Patterns that led to clean passes
+1. **All allocator APIs correct on first try**: FixedBufferAllocator, ArenaAllocator, FailingAllocator, StackFallbackAllocator, and ArenaAllocator.reset all used correctly. The RAG search before each exercise group confirmed API signatures.
+2. **Custom VTable implementation**: Got all 4 function signatures correct (`alloc`, `resize`, `remap`, `free`) with proper `@ptrCast(@alignCast(ctx))` recovery. Used `child.vtable.alloc(child.ptr, ...)` delegation pattern.
+3. **checkAllAllocationFailures**: Correctly used the `fn(Allocator) !void` signature for the test function, and the extra-args tuple pattern for Part C of exercise 25.
+4. **errdefer partial cleanup pattern**: Correctly tracked `initialized` count and used it in errdefer to free only the partial work (exercise 14).
+5. **ArrayList .empty pattern**: Consistently used throughout exercises 13, 21, 24, 25 without any ArrayList allocator mistakes.
+6. **StackFallbackAllocator .get()**: Correctly avoided `.allocator()` (which is `@compileError`).
+
+### Skill knowledge base updates made
+1. **Defer timing note**: Added to SKILL.md rule #3: defers execute after the return expression is evaluated; their side effects are not visible through return values.
+2. **VTable function signatures**: Added complete VTable reference with all 4 function pointer signatures and delegation pattern to SKILL.md allocator decision framework.
+3. **Additional allocator entries**: Added StackFallbackAllocator, FailingAllocator, and checkAllAllocationFailures to the allocator decision table.
