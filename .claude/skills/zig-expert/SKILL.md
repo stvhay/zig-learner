@@ -106,6 +106,8 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 // @fieldParentPtr("field_name", ptr) — string first
 // StringHashMap.deinit() does NOT free keys — free via keyIterator() first
 // No self-referential slices in value structs — use method to reconstruct
+// mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8
+// Function params shadow same-named methods — rename to avoid compile error
 ```
 
 ### Build System

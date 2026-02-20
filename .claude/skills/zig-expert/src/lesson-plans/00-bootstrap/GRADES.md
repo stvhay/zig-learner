@@ -339,3 +339,101 @@ Total compile failures: 5
 - Estimated total tokens consumed: ~85,000 (input + output)
 - Number of tool calls: ~65
 - Tokens per exercise: ~3,400
+
+---
+
+# Lesson 05: Idioms & Design Patterns -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Generic data structure - Stack(T) returning struct | 5 | 0 | 5 | A |
+| 2 | Generic data structure - multi-type instantiation | 5 | 0 | 5 | A |
+| 3 | Vtable interface - define and call through fat pointer | 5 | 0 | 5 | A |
+| 4 | Vtable interface - multiple implementors, polymorphic array | 10 | 0 | 10 | A |
+| 5 | Iterator pattern - next() returns ?T, while-optional loop | 5 | 0 | 5 | A |
+| 6 | Iterator pattern - filter iterator adapter | 10 | 0 | 10 | A |
+| 7 | Writer interface - GenericWriter with custom context | 5 | 0 | 5 | A |
+| 8 | Writer interface - ArrayList writer and fixedBufferStream | 5 | 0 | 5 | A |
+| 9 | Allocator interface - parameter convention, init/deinit | 5 | 0 | 5 | A |
+| 10 | Allocator interface - arena allocator scoped lifetime | 10 | 0 | 10 | A |
+| 11 | RAII / defer - init/deinit pair with defer | 5 | 0 | 5 | A |
+| 12 | RAII / defer - errdefer for partial initialization cleanup | 10 | 0 | 10 | A |
+| 13 | Sentinel-terminated slices - [:0]const u8 properties | 5 | 0 | 5 | A |
+| 14 | Sentinel-terminated slices - mem.span, mem.sliceTo | 5 | -1 (compile fail) | 4 | B |
+| 15 | @fieldParentPtr - recover parent from embedded field | 5 | 0 | 5 | A |
+| 16 | @fieldParentPtr - intrusive linked list traversal | 10 | 0 | 10 | A |
+| 17 | Comptime generics - BoundedBuffer(T, cap) with static array | 10 | 0 | 10 | A |
+| 18 | Comptime generics - comptime validation and comptimePrint | 5 | 0 | 5 | A |
+| 19 | Tagged union state machine - define states, transitions | 10 | 0 | 10 | A |
+| 20 | Tagged union state machine - exhaustive switch dispatch | 5 | 0 | 5 | A |
+| 21 | Options struct pattern - defaults and partial init | 5 | 0 | 5 | A |
+| 22 | Options struct pattern - builder-style chaining | 10 | 0 | 10 | A |
+| 23 | Type-erased callbacks - *anyopaque context + fn pointer | 10 | 0 | 10 | A |
+| 24 | Combined - generic container with iterator + allocator | 20 | -1 (compile fail) | 19 | A |
+| 25 | Combined - type-erased event system with vtable + callbacks | 20 | 0 | 20 | A |
+| **TOTAL** | | **200** | **-2** | **198** | **A** |
+
+**Overall: 198/200 = 99% = A**
+
+## Detailed Notes
+
+### Exercise 14: Sentinel-terminated slices - mem.span, mem.sliceTo (1 compile failure, -1 pt)
+
+**Compile failure #1 (-1 pt, new):** Attempted to pass `[*]u8` (plain many-pointer) to `std.mem.sliceTo`. The function requires a sentinel-terminated pointer type (`[*:0]u8`), not a plain many-pointer. Error: "invalid type given to std.mem.sliceTo: [*]u8". Fixed by declaring the array as `[_:0]u8` (sentinel-terminated array) and using `[*:0]u8` pointer type.
+
+**Root cause:** Assumed `sliceTo` would accept any many-pointer and scan for the sentinel value. In reality, the sentinel must be part of the type system so the compiler can guarantee termination.
+
+### Exercise 24: Deque with iterator + allocator (1 compile failure, -1 pt)
+
+**Compile failure #1 (-1 pt, new):** Named a function parameter `capacity` which shadowed the method `fn capacity(self: *const Self) usize`. Zig does not allow function parameters to shadow declarations from the enclosing scope. Fixed by renaming the parameter to `cap`.
+
+**Root cause:** Zig's shadowing rules are stricter than most languages. In a struct with methods, function parameters cannot share names with any method in the same struct scope.
+
+### All Other Exercises: Clean Pass
+
+23 out of 25 exercises passed on the first compile and first test run with zero deductions. All vtable patterns, iterator patterns, writer interfaces, allocator patterns, RAII defer patterns, @fieldParentPtr, comptime generics, tagged union state machines, options patterns, type-erased callbacks, and both difficulty-3 combined exercises worked correctly on the first attempt.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| 14 | 1 | "invalid type given to std.mem.sliceTo: [*]u8" | sliceTo requires sentinel-terminated pointer type | No |
+| 24 | 1 | "function parameter shadows declaration of 'capacity'" | Parameter name shadowed method name in struct | No |
+
+Total compile failures: 2
+- New mistakes: 2 (cost: -1 pt each)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **mem.sliceTo type requirement**: `std.mem.sliceTo` requires a sentinel-terminated pointer (`[*:0]T`), not a plain many-pointer (`[*]T`). The sentinel must be encoded in the type. To create a sentinel-terminated array, use `[_:0]u8{...}` syntax. This has been added to SKILL.md.
+
+2. **Parameter shadowing methods**: In Zig, function parameters cannot shadow declarations (including methods) in the same scope. When writing `init(allocator, capacity)` inside a struct that also has a `capacity()` method, the compiler rejects it. Use distinct names to avoid this.
+
+### Patterns that led to clean passes
+
+1. **Vtable pattern**: The fat-pointer vtable pattern (`ptr: *anyopaque` + `vtable: *const VTable`) with `@ptrCast(@alignCast(...))` for type recovery worked cleanly. Used `@ptrCast(&implFn)` for function pointer casts in vtable initialization.
+2. **GenericWriter**: `std.io.GenericWriter(*Context, ErrorType, writeFn)` with `.context = self` worked first try.
+3. **ArrayList.writer(gpa)**: The 0.15.2 writer pattern taking allocator as parameter worked correctly.
+4. **fixedBufferStream**: `std.io.fixedBufferStream(&buf)` + `.writer()` + `.getWritten()` pattern was clean.
+5. **@fieldParentPtr**: `@fieldParentPtr("field_name", ptr)` — string-first argument order (documented in SKILL.md) was used correctly.
+6. **Tagged union state machines**: `advance` method with exhaustive switch and payload capture worked cleanly. Both void-payload and struct-payload variants handled correctly.
+7. **Builder pattern**: Method chaining via `fn setX(self: *Self, val) *Self` returning self pointer worked correctly.
+8. **Type-erased callbacks**: The `*anyopaque` + `*const fn(*anyopaque) void` pattern with `@ptrCast(@alignCast(...))` recovery was clean.
+9. **Ring buffer Deque**: Modular arithmetic for circular indexing (`idx % capacity`) worked correctly for both pushFront (decrementing head) and pushBack (incrementing tail).
+10. **Event system with vtable + callbacks**: Combining Listener vtable interface, Logger with ArrayList, Counter with pointer increment, and EventBus with fixed array all worked on first attempt.
+
+### Skill knowledge base updates made
+
+1. **mem.sliceTo sentinel requirement**: Added to SKILL.md API corrections: "mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8"
+2. **Parameter shadowing**: Added note: "Function params shadow same-named methods — rename to avoid compile error"
+
+## Token Usage
+
+- Estimated total tokens consumed: ~75,000 (input + output)
+- Number of tool calls: ~55
+- Tokens per exercise: ~3,000
