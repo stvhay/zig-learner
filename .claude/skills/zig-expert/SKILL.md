@@ -159,7 +159,7 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 Rules where Zig idiom diverges from other languages:
 1. **`if (opt) |val|` not `opt.?`** — payload captures don't panic; `.?` does
 2. **`StaticStringMap` for string dispatch** — comptime hash + enum + exhaustive switch
-3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire
+3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire. **LIFO is absolute**: on the error path, `defer` and `errdefer` interleave strictly by registration order (last registered = first to fire). A `defer` registered *after* an `errdefer` fires *before* the errdefer — there is no grouping by type.
 4. **`anytype` for writer params** — concrete writer types don't compose
 5. **Create resources once** — writer in main(), pass as parameter
 6. **Honor accepted allocators** — never `_ = allocator` then hardcode
