@@ -235,3 +235,107 @@ Total compile failures: 1
 1. **Defer timing note**: Added to SKILL.md rule #3: defers execute after the return expression is evaluated; their side effects are not visible through return values.
 2. **VTable function signatures**: Added complete VTable reference with all 4 function pointer signatures and delegation pattern to SKILL.md allocator decision framework.
 3. **Additional allocator entries**: Added StackFallbackAllocator, FailingAllocator, and checkAllAllocationFailures to the allocator decision table.
+
+---
+
+# Lesson 04: Comptime & Metaprogramming -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | comptime var in blocks -- loop accumulator | 5 | 0 | 5 | A |
+| 2 | comptime function parameters -- type as first-class value | 5 | 0 | 5 | A |
+| 3 | comptime function evaluation -- recursive factorial | 5 | 0 | 5 | A |
+| 4 | @typeInfo on integers and floats | 5 | 0 | 5 | A |
+| 5 | @typeInfo on structs -- field details | 10 | 0 | 10 | A |
+| 6 | @typeInfo on enums, unions, optionals, pointers, arrays, error sets | 10 | 0 | 10 | A |
+| 7 | @Type to generate struct types | 10 | 0 | 10 | A |
+| 8 | @Type to generate enum types | 10 | 0 | 10 | A |
+| 9 | @typeName for type identity strings | 5 | 0 | 5 | A |
+| 10 | std.meta -- fields, fieldNames, FieldEnum | 5 | 0 | 5 | A |
+| 11 | std.meta -- stringToEnum, activeTag | 5 | 0 | 5 | A |
+| 12 | std.meta -- hasFn, eql, Tag | 5 | 0 | 5 | A |
+| 13 | comptime string concatenation with ++ and ** | 5 | 0 | 5 | A |
+| 14 | std.fmt.comptimePrint | 5 | 0 | 5 | A |
+| 15 | comptime string building -- join and reverse | 10 | -3 (3 compile fails) | 7 | C |
+| 16 | comptime lookup tables -- base64 encode/decode | 10 | 0 | 10 | A |
+| 17 | comptime lookup tables -- precomputed squares | 5 | 0 | 5 | A |
+| 18 | inline for over types -- multi-type testing | 5 | 0 | 5 | A |
+| 19 | inline for over struct fields -- generic field iteration | 10 | 0 | 10 | A |
+| 20 | @compileError for static assertions | 5 | 0 | 5 | A |
+| 21 | @hasDecl and @hasField for feature detection | 5 | -1 (1 compile fail) | 4 | B |
+| 22 | builder pattern -- chaining field assignments | 10 | 0 | 10 | A |
+| 23 | custom format with {f} specifier | 10 | 0 | 10 | A |
+| 24 | full type transformation -- NullableFields via @Type | 20 | 0 | 20 | A |
+| 25 | comptime state machine with generated enum and dispatch | 20 | -2 (1 known compile fail) | 18 | A |
+| **TOTAL** | | **200** | **-6** | **194** | **A** |
+
+**Overall: 194/200 = 97% = A**
+
+## Detailed Notes
+
+### Exercise 15: comptime string building (3 compile failures, -3 pts)
+
+**Compile failure #1 (-1 pt, new):** Attempted to return `[]const u8` from a `comptime` block inside a function with comptime parameters. Error: "function called at runtime cannot return value at comptime". The compiler generates both comptime and runtime versions, and returning a comptime-only slice type from inside a comptime block doesn't work.
+
+**Compile failure #2 (-1 pt, new):** Changed return type to `*const [N]u8` but still wrapped the body in a `comptime { ... }` block. Same error -- the comptime block inside the function creates a scope mismatch.
+
+**Compile failure #3 (-1 pt, new):** Removed the comptime block but used plain `const len = ...` (not comptime-known at the use site). Array size requires comptime-known value. Fix: call the length helper function directly in the array type declaration so it resolves at comptime.
+
+**Final fix:** Use `*const [computedLen()]u8` as return type (length computed by separate helper), `comptime var` for mutable state, and `inline for` for loops. No wrapping `comptime {}` block.
+
+### Exercise 21: @hasDecl and @hasField (1 compile failure, -1 pt)
+
+**Compile failure #1 (-1 pt, new -- same pattern as ex15):** Tried to return `[]const u8` from a comptime block inside a function with comptime type parameter. Same "function called at runtime cannot return value at comptime" error. Applied the lesson from ex15: compute length with helper, use `*const [N]u8` return type.
+
+### Exercise 25: comptime state machine (1 compile failure, -2 pts)
+
+**Compile failure #1 (-2 pts, known):** Used `comptime blk:` inside a `pub const` declaration within a returned struct type. Error: "redundant comptime keyword in already comptime scope". This is documented in SKILL.md ("module-level const is already comptime -- adding comptime keyword = compile error"). The `const` inside a struct returned from a comptime function is already comptime. Fix: remove the `comptime` keyword.
+
+### All Other Exercises: Clean Pass
+
+22 out of 25 exercises passed on the first compile and first test run with zero deductions. All @typeInfo introspection, @Type generation, std.meta utilities, inline for patterns, builder pattern, custom format, and NullableFields type transformation exercises were handled correctly.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| 15 | 1 | "function called at runtime cannot return value at comptime" | Returning `[]const u8` from comptime block in function | No |
+| 15 | 2 | Same error | Still had comptime block wrapper | No (same root cause) |
+| 15 | 3 | "unable to resolve comptime value" | Plain `const len` not comptime-known for array size | No |
+| 21 | 1 | "function called at runtime cannot return value at comptime" | Same pattern as ex15 -- learned mid-lesson | No (repeat of ex15 pattern) |
+| 25 | 1 | "redundant comptime keyword in already comptime scope" | Used `comptime` on const inside struct type | Yes |
+
+Total compile failures: 5
+- New mistakes: 4 (cost: -4 pts at -1 each)
+- Known pitfall violations: 1 (cost: -2 pts)
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Comptime string return types**: The most significant lesson. Functions with comptime parameters that build strings at comptime cannot return `[]const u8` from comptime blocks. The pattern is: (a) write a helper function computing the output length, (b) use `*const [helperFn()]u8` as the return type, (c) use `comptime var` for mutable state and `inline for` for iteration. No wrapping `comptime { }` block needed since the function params are already comptime.
+
+2. **Redundant comptime in struct const**: `pub const` inside a struct type returned from a comptime-parameterized function is already comptime. Adding explicit `comptime` keyword is a compile error. This was in the skill KB but I still hit it.
+
+### Patterns that led to clean passes
+
+1. **@typeInfo quoted identifiers**: `.@"struct"`, `.@"enum"`, `.@"union"` used correctly throughout.
+2. **@Type struct/enum generation**: Field definitions with proper `.name` ([:0]const u8), `.type`, `.default_value_ptr`, `.alignment` fields all correct.
+3. **NullableFields type transformation**: Complex `@Type` + `@typeInfo` round-trip with default value pointers via `@ptrCast(&@as(Opt, null))` worked first try.
+4. **std.meta utilities**: `fields`, `fieldNames`, `FieldEnum`, `stringToEnum`, `activeTag`, `hasFn`, `eql`, `Tag` all used correctly.
+5. **Comptime lookup tables**: `@splat` for initialization, labeled block expressions for table generation.
+6. **Builder pattern**: `@field` with comptime field name for generic field access, `default_value_ptr` recovery via `@ptrCast(@alignCast(ptr))`.
+7. **Custom format**: 2-param signature `pub fn format(self: T, writer: anytype) !void` with `{f}` specifier worked correctly.
+8. **inline for with type tuples**: Clean pattern for multi-type testing.
+
+### Skill knowledge base updates made
+
+1. **Comptime string/array return pattern**: Added to SKILL.md "Comptime vs runtime" section. Documents the `*const [helperLen()]u8` return type pattern, the need for `comptime var` + `inline for`, and the prohibition on wrapping function bodies in `comptime {}` blocks. Also notes that struct-level `const` is already comptime.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~85,000 (input + output)
+- Number of tool calls: ~65
+- Tokens per exercise: ~3,400

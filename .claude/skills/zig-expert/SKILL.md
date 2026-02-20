@@ -154,6 +154,8 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Config validation | `@compileError` for invalid params |
 | Dynamic data / user input | Runtime |
 
+**Comptime string/array returns:** Functions with comptime params that build strings/arrays must return `*const [N]u8` where N is comptime-known (use a helper `fn` to compute length). Returning `[]const u8` from a comptime block inside such a function fails with "function called at runtime cannot return value at comptime". Use `comptime var` + `inline for` to fill the buffer. Variables used in comptime loops inside these functions need `comptime var` (not plain `var`) and `inline for` (not plain `for`). Same pattern applies to `const` decls inside returned struct types — omit redundant `comptime` keyword since struct-level `const` is already comptime.
+
 **Data structure:**
 | Need | Use |
 |------|-----|
