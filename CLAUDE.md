@@ -78,6 +78,15 @@ Every 20 lessons, a comprehensive exam covers all topics from the preceding 20 l
 
 Grades are documented in `GRADES.md` within each lesson plan directory (see Lesson Plans section above).
 
+### Subagent Coordination
+
+When using subagents (Task tool) for lessons:
+
+1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) architecturally cannot use MCP tools. Lesson subagents must run in **foreground** to access RAG. MCP tools are allowlisted in `.claude/settings.local.json` so they don't require per-call prompting.
+2. **Skill update is mandatory** — The subagent prompt must explicitly require SKILL.md updates when mistakes are found. The agent must not just *recommend* updates in GRADES.md — it must *make* them. Include: "You MUST edit SKILL.md if you discover any gap or error."
+3. **Atomic commits** — The commit must include both GRADES.md and any SKILL.md changes together.
+4. **RAG usage** — The subagent should use `mcp__ragling__rag_search` to look up API details, pitfalls, and patterns *during* exercises, not just before. Search before coding each exercise if unsure about an API.
+
 ## Self-Update Protocol
 
 This file, the skill at `.claude/skills/zig-expert/SKILL.md`, and the skill references should all be kept in sync as the project evolves:
