@@ -7,13 +7,16 @@ description: Use when writing, reviewing, debugging, or migrating Zig 0.15.2 cod
 
 ## On Load: Skill Discovery
 
-A SessionStart hook populates `.zig-expert.json` with all available skills (name + trigger). On first load, read this file and evaluate which skills are useful for Zig work. For each useful skill, record a note:
+A SessionStart hook populates `.zig-expert.json` with all available skills. On first load, review them and annotate the useful ones:
 
 ```bash
-python3 .claude/scripts/update-skill-note.py <skill-name> "<when/why to use it>"
+python3 .claude/scripts/skill.py                          # list all
+python3 .claude/scripts/skill.py <name>                   # show one
+python3 .claude/scripts/skill.py <name> <note>            # add note
+python3 .claude/scripts/skill.py <name> --delete          # remove note
 ```
 
-Notes persist across sessions. Review and update them as you learn which skills actually help.
+Notes persist across sessions. Review and update as you learn which skills actually help.
 
 ## How Zig Thinks
 
