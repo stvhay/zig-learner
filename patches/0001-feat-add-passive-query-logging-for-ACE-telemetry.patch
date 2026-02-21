@@ -1,4 +1,4 @@
-From c6b166912c43e8cb0e0a649f93da2d8c62d3b290 Mon Sep 17 00:00:00 2001
+From 71f8e85b0001406b0c045548c4aab240eb9bbf45 Mon Sep 17 00:00:00 2001
 From: Steve Hay <github@stevenhay.com>
 Date: Fri, 20 Feb 2026 20:11:01 -0500
 Subject: [PATCH] feat: add passive query logging for ACE telemetry
