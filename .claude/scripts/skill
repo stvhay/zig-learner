@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python3
 """Manage skill discovery and agent notes.
 
 Usage:
-    skill.py                      List all skills
-    skill.py <name>               Show one skill
-    skill.py <name> <note>        Add agent note
-    skill.py <name> --delete      Remove agent note
+    skill                         List all skills
+    skill <name>                  Show one skill
+    skill <name> <note>           Add agent note
+    skill <name> --delete         Remove agent note
 """
 
 import json

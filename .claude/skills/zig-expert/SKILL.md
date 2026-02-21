@@ -7,14 +7,13 @@ description: Use when writing, reviewing, debugging, or migrating Zig 0.15.2 cod
 
 ## On Load: Skill Discovery
 
-On first load, use `skill.py` to review available skills and add usage notes. The script resolves paths from its own location — works from any cwd.
+On first load, review available skills and annotate the useful ones:
 
 ```bash
-SKILL_PY="$(git rev-parse --show-toplevel)/.claude/scripts/skill.py"
-python3 "$SKILL_PY"                          # list all
-python3 "$SKILL_PY" <name>                   # show one
-python3 "$SKILL_PY" <name> <note>            # add note
-python3 "$SKILL_PY" <name> --delete          # remove note
+skill                          # list all
+skill <name>                   # show one
+skill <name> <note>            # add note
+skill <name> --delete          # remove note
 ```
 
 Notes persist across sessions. Review and update as you learn which skills actually help.
