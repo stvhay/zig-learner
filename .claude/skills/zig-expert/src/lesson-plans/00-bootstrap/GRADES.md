@@ -589,3 +589,123 @@ The plan produced the following SKILL.md additions:
 - Parameter shadowing note
 - Concurrency primitives table (Thread, Mutex, Condition, RwLock, Semaphore, WaitGroup, ResetEvent, Thread.Pool)
 - Atomics reference (fetchAdd OLD value, cmpxchg semantics, memory ordering)
+
+---
+
+# Lesson 07: Hex Dump (Applied) -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Basic hex dump - read file and format output | 5 | 0 | 5 | A |
+| 2 | Binary file - all 256 byte values | 5 | 0 | 5 | A |
+| 3 | Grouping `-g` flag | 5 | 0 | 5 | A |
+| 4 | Columns `-c` and length `-l` flags | 5 | 0 | 5 | A |
+| 5 | File seeking `-s` flag | 5 | 0 | 5 | A |
+| 6 | Stdin support | 5 | 0 | 5 | A |
+| 7 | Plain hex mode `-p` | 5 | 0 | 5 | A |
+| 8 | Uppercase mode `-u` | 5 | 0 | 5 | A |
+| 9 | Little-endian mode `-e` | 5 | 0 | 5 | A |
+| 10 | C include mode `-i` | 5 | 0 | 5 | A |
+| 11 | Reverse mode `-r` | 5 | 0 | 5 | A |
+| 12 | Reverse plain `-r -p` and binary mode `-b` | 5 | 0 | 5 | A |
+| **TOTAL** | | **60** | **-2** | **58** | **A** |
+
+**Overall: 58/60 = 96.7% = A**
+
+**Compile failures: 1 (known mistake, -2 pts)**
+
+## Detailed Notes
+
+### Compile Failure #1 (-2 pts, known mistake)
+
+**Error:** Used `std.io.getStdErr()`, `std.io.getStdOut()`, and `std.io.getStdIn()` instead of `std.fs.File.stderr()`, `std.fs.File.stdout()`, and `std.fs.File.stdin()`.
+
+**Error message:** `root source file struct 'Io' has no member named 'getStdErr'`
+
+**Root cause:** Reverted to the old 0.14 pattern despite SKILL.md explicitly documenting the correct 0.15.2 pattern (`std.fs.File.stdout()`) and the pitfalls reference listing this exact error message. The quiz reference code also showed `std.fs.File.stdin()`. This is a known pitfall, so -2 pts per the rubric.
+
+**Fix:** Changed all three to `std.fs.File.stderr()`, `std.fs.File.stdout()`, `std.fs.File.stdin()`.
+
+### All Exercises: Functionally Correct
+
+After fixing the compile error, all 12 exercises produced output identical to `xxd` (verified with `diff`):
+
+- Q1-Q2: Basic hex dump and binary file handling matched `xxd` byte-for-byte
+- Q3: All grouping modes (`-g 1`, `-g 2`, `-g 4`) matched `xxd`
+- Q4: Column widths and length limiting matched `xxd`
+- Q5: Seeking with decimal and hex offsets matched `xxd`
+- Q6: Stdin support (piped input) matched `xxd`
+- Q7: Plain hex mode matched `xxd`
+- Q8: Uppercase mode matched `xxd`
+- Q9: Little-endian mode including partial group padding matched `xxd`
+- Q10: C include mode matched `xxd`
+- Q11: Round-trip `ccxxd file | ccxxd -r` restored original files exactly (test1.txt, test2.bin, test1.txt with -c 8)
+- Q12: Reverse plain hex round-trip and binary mode both matched `xxd`
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| All (pre-Q1) | 1 | `struct 'Io' has no member named 'getStdErr'` | Used old `std.io.getStdErr()` instead of `std.fs.File.stderr()` | Yes |
+
+Total compile failures: 1
+- Known pitfall violations: 1 (cost: -2 pts)
+- New mistakes: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Old stdout/stderr/stdin API**: Used `std.io.getStdErr()` / `getStdOut()` / `getStdIn()` instead of `std.fs.File.stderr()` / `.stdout()` / `.stdin()`. This is a well-documented 0.15.2 change. The SKILL.md explicitly says "NOT std.io.getStdOut!" but I still used the old pattern on first attempt. Likely a training-data muscle memory issue.
+
+### Patterns that led to clean passes
+
+1. **Buffered writer + flush pattern**: `File.stdout().writer(&buf)` then `&w.interface` for the AnyWriter, with `defer stdout.flush() catch {}`. Used correctly throughout.
+2. **`file.read(&buf)` loop pattern**: Raw byte reading in a loop with `n == 0` for EOF. No issues with `file.reader()` confusion (which is a documented pitfall).
+3. **Hex formatting specifiers**: `{x:0>2}`, `{X:0>2}`, `{x:0>8}`, `{b:0>8}`, `{c}` all used correctly with `@as(u8, ...)` type annotations where needed.
+4. **`std.fmt.parseInt(usize, str, 0)`**: Base 0 for auto-detection of decimal vs hex (`0x`) prefix. Used for `-s` flag.
+5. **`file.seekTo(offset)`**: Direct seeking on file handles worked as expected.
+6. **Little-endian byte reversal**: Reversed bytes within groups by iterating backwards. Partial groups right-aligned with leading spaces per `xxd` behavior.
+7. **Reverse hex dump parsing**: Line-by-line parsing finding `: ` separator, then parsing hex digits until double-space (ASCII column boundary).
+8. **CLI argument parsing**: Manual arg parsing with flag detection and positional filename. Simple and effective for this use case.
+
+### Code quality assessment
+
+The implementation is a single-file 480+ line program with several distinct functions:
+- `parseArgs` -- CLI argument parsing
+- `hexDump` -- standard hex dump output
+- `plainHexDump` -- plain hex mode
+- `cIncludeDump` -- C include mode
+- `reverseHexDumpFixed` -- reverse mode (standard and plain)
+- `main` -- dispatch
+
+Quality is reasonable for an applied exercise. Some areas could be improved:
+- The hex width calculation for padding is duplicated between normal and little-endian modes
+- The `parseArgs` function re-scans args to check if `-g` or `-c` were explicitly set for `-e` and `-b` defaults
+- Error handling uses `catch` blocks that check for `EndOfStream` specifically
+
+No code quality grade deduction applied -- the code is functional, structured, and readable.
+
+### Skill knowledge base updates made
+
+1. **stdin accessor**: Added `std.fs.File.stdin()` example to SKILL.md API corrections section alongside the existing stdout/stderr pattern. Updated the comment to explicitly list all three wrong names: `getStdOut/getStdErr/getStdIn`.
+
+### Snippet curation
+
+Created `src/exercises/file_io_cli.zig` with curated patterns:
+- Buffered stdout writer setup
+- Hex byte formatting (lowercase, uppercase, binary, character)
+- `parseInt` with base-0 auto-detection
+- File read loop pattern (with seek and stdin fallback)
+- ASCII printable range check
+- Hex char to nibble conversion with byte reconstruction
+
+All 6 tests pass.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~65,000 (input + output)
+- Number of tool calls: ~35
+- Tokens per exercise: ~5,400

@@ -79,10 +79,11 @@ var map = std.AutoHashMap(K, V).init(gpa);
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
 defer _ = gpa.deinit();
 
-// stdout writer (NOT std.io.getStdOut!)
+// stdout/stderr/stdin (NOT std.io.getStdOut/getStdErr/getStdIn!)
 var buf: [1024]u8 = undefined;
 var w = std.fs.File.stdout().writer(&buf);
 const stdout = &w.interface;  // flush() HERE, not on w
+const stdin_file = std.fs.File.stdin();  // for raw reads: stdin_file.read(&buf)
 
 // JSON serialize (no stringify/stringifyAlloc)
 const s = try std.fmt.allocPrint(gpa, "{f}", .{std.json.fmt(value, .{})});
