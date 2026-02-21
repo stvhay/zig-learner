@@ -66,11 +66,14 @@ Debug and ReleaseSafe keep all safety checks (bounds, overflow, null deref → p
 
 These changed from 0.14. Training data overwhelmingly shows the OLD way. Full pitfall list: **pitfalls-reference.md**.
 
+**STOP — Read this before writing ANY ArrayList code:** `ArrayList` in 0.15.2 uses `.empty` init and passes allocator to EVERY method. The old `.init(gpa)` / `.append(val)` pattern DOES NOT EXIST. This mistake has occurred in 8+ exercises across 5 lessons. If you write `.init(` for an ArrayList, you are wrong.
+
 ```zig
-// ArrayList: .empty + per-method allocator (NOT .init())
-var list: std.ArrayList(i32) = .empty;
-defer list.deinit(gpa);
-try list.append(gpa, 42);
+// ⚠️ ArrayList: .empty + per-method allocator — NEVER .init(gpa), NEVER .append(val)
+// This is the #1 recurring mistake (hit in 8+ exercises). The old Managed API is GONE.
+var list: std.ArrayList(i32) = .empty;   // NOT .init(gpa)
+defer list.deinit(gpa);                  // NOT .deinit()
+try list.append(gpa, 42);               // NOT .append(42)
 
 // HashMap: .init(gpa) — stored allocator (inconsistent with ArrayList!)
 var map = std.AutoHashMap(K, V).init(gpa);
@@ -87,6 +90,13 @@ const stdin_file = std.fs.File.stdin();  // for raw reads: stdin_file.read(&buf)
 
 // JSON serialize (no stringify/stringifyAlloc)
 const s = try std.fmt.allocPrint(gpa, "{f}", .{std.json.fmt(value, .{})});
+
+// ⚠️ JSON parse: use .alloc_always when input buffer will be freed
+// Default .alloc_if_needed makes []const u8 fields point INTO input buffer.
+// If you free the input, parsed strings become dangling pointers (0xAA in debug).
+const parsed = try std.json.parseFromSlice(T, gpa, input, .{ .allocate = .alloc_always });
+defer parsed.deinit();  // frees arena (all parsed strings + arrays)
+// Safe: parsed.value.string_field is independently allocated
 
 // Writer params: anytype (AnyWriter ≠ Writer from .interface)
 fn process(stdout: anytype, stderr: anytype) !void { ... }
@@ -146,11 +156,15 @@ defer gpa.free(data);
 const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
 defer gpa.free(data2);
 
-// Buffered line reading: bufferedReaderSize + readUntilDelimiterOrEof
-var buf_reader = std.io.bufferedReaderSize(8192, file);
+// Line reading from stdin: deprecatedReader + readUntilDelimiterOrEof
+// ⚠️ std.io.bufferedReaderSize does NOT exist in 0.15.2
+const stdin_file = std.fs.File.stdin();
+const reader = stdin_file.deprecatedReader();  // GenericReader with readUntilDelimiterOrEof
 var line_buf: [4096]u8 = undefined;
-const line = buf_reader.reader().readUntilDelimiterOrEof(&line_buf, '\n');
+const line = reader.readUntilDelimiterOrEof(&line_buf, '\n');
 // Returns ?[]u8 — null on EOF. Line does NOT include delimiter.
+// ⚠️ Buffer aliasing: if reading multiple inputs into same line_buf,
+// earlier slices become invalid. Use allocator.dupe() before next read.
 
 // Little-endian binary I/O: std.mem.toBytes / readInt
 try f.writeAll(&std.mem.toBytes(@as(u32, value)));   // write LE
@@ -185,6 +199,21 @@ const sa = std.posix.Sigaction{
     .flags = 0,
 };
 std.posix.sigaction(std.posix.SIG.INT, &sa, null);  // no catch on macOS
+
+// Crypto: AES-256-GCM authenticated encryption
+const Aes256Gcm = std.crypto.aead.aes_gcm.Aes256Gcm;
+Aes256Gcm.encrypt(ciphertext, &tag, plaintext, &.{}, nonce, key);
+Aes256Gcm.decrypt(plaintext, ciphertext, tag, &.{}, nonce, key) catch return error.AuthFailed;
+// key: [32]u8, nonce: [12]u8, tag: [16]u8, ad: &.{} (empty associated data)
+
+// Crypto: Argon2id key derivation — allocator is FIRST param
+try std.crypto.pwhash.argon2.kdf(gpa, &derived_key, password, &salt,
+    .{ .t = 3, .m = 65536, .p = 1 }, .argon2id);
+// derived_key: *[32]u8, password: []const u8, salt: *const [16]u8
+
+// Crypto: secure random bytes
+std.crypto.random.bytes(&buf);                        // fill buffer
+const n = std.crypto.random.uintLessThan(u8, max);    // unbiased [0, max)
 
 // Performance timing: nanoTimestamp (i128)
 const t0 = std.time.nanoTimestamp();

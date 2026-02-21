@@ -1320,3 +1320,129 @@ Quality is good for an applied exercise. The code handles edge cases (empty inde
 - Tokens per exercise: ~9,167
 
 Actual (Task tool): 61 API turns, $6.79 total (system replay $0.43, context replay $3.79, cache writes $1.94, output $0.63). System context: 14,249 tokens. Compared to Lesson 06 (Load Balancer): 37 turns / $3.67 -- nearly 2x cost. The higher cost reflects the complexity of 12 exercises building a single evolving program (git internals) vs 10 exercises in L06, plus 3 compile-fix-recompile cycles.
+
+---
+
+# Lesson 08: Password Manager (Applied) -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Random byte generation + hex encoding | 5 | 0 | 5 | A |
+| 2 | Key derivation (Argon2id) | 5 | 0 | 5 | A |
+| 3 | AES-256-GCM encrypt/decrypt | 5 | 0 | 5 | A |
+| 4 | Vault file read/write (binary format) | 5 | 0 | 5 | A |
+| 5 | JSON record serialization | 5 | 0 | 5 | A |
+| 6 | Create/open vault pipeline | 5 | 0 | 5 | A |
+| 7 | Add/get records (MutableVault) | 5 | -3 | 2 | F |
+| 8 | CLI entry point (create/open) | 5 | -1 | 4 | B |
+| 9 | Interactive session (add/get/list) | 5 | -2 | 3 | D |
+| 10 | Update/delete (unit tests) | 5 | -2 | 3 | D |
+| 11 | Password generator (unit tests) | 5 | 0 | 5 | A |
+| 12 | Export/import/change-password (unit tests) | 5 | -3 | 2 | F |
+| **Total** | | **60** | **-11** | **49** | **B (81.7%)** |
+
+Code quality: A (no additional penalty). Final code is well-structured with proper error handling, memory management (errdefer, deinit), and clean separation of concerns.
+
+## Per-Exercise Details
+
+### Q1: Random Byte Generation + Hex Encoding (5/5, A)
+- Functions: `generateSalt() -> [16]u8`, `generateNonce() -> [12]u8`, `hexEncode`, `hexDecode`
+- 7 tests: all pass on first compile and first run
+- Zero deductions
+
+### Q2: Key Derivation (5/5, A)
+- Function: `deriveKey(allocator, password, salt) -> ![32]u8` using `crypto.pwhash.argon2.kdf`
+- 4 tests: all pass on first compile and first run
+- Key API: allocator as first param, `&salt` (pointer to array), `.argon2id` mode
+- Zero deductions
+
+### Q3: AES-256-GCM Encrypt/Decrypt (5/5, A)
+- Functions: `encryptData`, `decryptData` wrapping `Aes256Gcm.encrypt`/`.decrypt`
+- 4 tests: all pass on first compile and first run
+- Key API: `encrypt(ciphertext, &tag, plaintext, &.{}, nonce, key)` — ad is `&.{}` (empty tuple)
+- Zero deductions
+
+### Q4: Vault File Read/Write (5/5, A)
+- Binary format: `CCPW` magic (4) + version (1) + salt (16) + nonce (12) + tag (16) + ciphertext
+- `writeVaultFile`, `readVaultFile` with validation checks
+- 3 tests: all pass on first compile and first run
+- Zero deductions
+
+### Q5: JSON Record Serialization (5/5, A)
+- `Record` struct with `name`, `username`, `password` fields
+- `VaultData` struct wrapping `[]const Record`
+- Serialize with `std.fmt.allocPrint("{f}", .{json.fmt(vault, .{})})`
+- Parse with `json.parseFromSlice(VaultData, allocator, data, .{})`
+- 3 tests: all pass
+- Zero deductions
+
+### Q6: Create/Open Vault Pipeline (5/5, A)
+- `createVault`: generate salt+nonce, derive key, serialize empty vault, encrypt, write
+- `openVault`: read file, derive key, decrypt, parse JSON -> `json.Parsed(VaultData)`
+- Used `.allocate = .alloc_always` (applied proactively after discovering the issue during implementation)
+- 3 tests: all pass
+- Zero deductions
+
+### Q7: Add/Get Records with MutableVault (2/5, F)
+- `MutableVault` struct with `std.ArrayList(Record)`, owns allocated strings
+- Methods: `init`, `deinit`, `fromParsed`, `toVaultData`, `addRecord`, `getRecord`
+- **Compile failure 1** (-2, known pitfall): Used `std.ArrayList(Record).init(allocator)` and `.append(item)` — old deprecated Managed API. Correct 0.15.2 API: `.empty` init, `append(allocator, item)`, `deinit(allocator)`. This pitfall IS documented in SKILL.md.
+- **Test failure** (-1, new mistake): `parseFromSlice` with default `allocate = .alloc_if_needed` returns `[]const u8` fields as pointers into the input buffer. When `defer allocator.free(plaintext)` runs in `openVault`, parsed strings become dangling (0xAA undefined memory). Fix: `.{ .allocate = .alloc_always }`. Persistence test (create -> save -> reopen -> verify) failed on first run; 3/4 tests passed.
+- After fixes: all 4 tests pass
+
+### Q8: CLI Entry Point (4/5, B)
+- `main()` with `std.process.argsWithAllocator`, GPA allocator, command parsing
+- Supports `create` (password + confirm) and `open` (password + session)
+- Dupes password from line_buf before reuse
+- **Compile failure** (-1, new mistake): Used `std.io.bufferedReaderSize` which doesn't exist in 0.15.2's new `std.Io` module. SKILL.md incorrectly documented this pattern. Fix: `std.fs.File.stdin().deprecatedReader()` which provides `readUntilDelimiterOrEof`.
+- After fix: create/open work correctly with piped input
+
+### Q9: Interactive Session (3/5, D)
+- Command loop: add, get, list (sorted), help, quit
+- stderr for prompts, stdout for data output
+- **Test failure** (-2, new mistake): Buffer aliasing bug. All prompts in `add` command read into shared `line_buf`. Trimmed slices (name_trimmed, user_trimmed, pass_trimmed) all pointed into `line_buf`, so each `readLine` overwrote previous values. First test showed "Record 's3cret' saved" (last read) instead of "Record 'github' saved" (first read). Fix: `allocator.dupe()` each prompted value before reading the next.
+- After fix: all commands work correctly
+
+### Q10: Update/Delete Unit Tests (3/5, D)
+- `updateRecord`: finds by name, replaces username/password (empty string = keep existing)
+- `deleteRecord`: finds by name, frees owned strings, `orderedRemove`
+- `findIndex`: internal helper for case-insensitive name lookup
+- **Compile failure** (-2, known pitfall): Same ArrayList API issue as Q7 (`.init(allocator)` -> `.empty`, `.append(item)` -> `.append(allocator, item)`)
+- After fix: all 4 tests pass
+
+### Q11: Password Generator Unit Tests (5/5, A)
+- `generatePassword(allocator, length)`: guarantees one uppercase, one lowercase, one digit, one symbol
+- Fisher-Yates shuffle for randomization
+- Uses `crypto.random.uintLessThan` for unbiased random selection
+- 4 tests: all pass on first compile and first run
+- Zero deductions
+
+### Q12: Export/Import/Change-Password Unit Tests (2/5, F)
+- `exportRecords`: serialize `mv.records.items` to JSON file
+- `importRecords`: parse JSON array, add records skipping duplicates, return imported/skipped counts
+- Change-password test: create with old password, open, re-encrypt with new, verify old fails + new works
+- **Compile failure 1** (-2, known pitfall): Same ArrayList API issue
+- **Compile failure 2** (-1, new mistake): Missing `fromParsed` method (needed for change-password test, was defined in Q7 but Q12 uses `VaultData` instead of `Vault`)
+- After fixes: all 3 tests pass
+
+## Key Patterns Discovered
+
+1. **parseFromSlice string ownership** (CRITICAL, new): Default `allocate = .alloc_if_needed` causes `[]const u8` fields to reference the input buffer directly (no copy). When the input buffer is freed, parsed strings become dangling pointers. Use `.{ .allocate = .alloc_always }` whenever the input buffer has a shorter lifetime than the parsed result.
+
+2. **Shared buffer aliasing**: When reading multiple interactive inputs into the same buffer, slices from earlier reads are invalidated by later reads. Must `allocator.dupe()` each value before reading the next line.
+
+3. **std.io.bufferedReaderSize doesn't exist in 0.15.2**: The SKILL.md entry was wrong. Use `file.deprecatedReader()` for the old GenericReader API with `readUntilDelimiterOrEof`.
+
+4. **File.writer() in 0.15.2**: `File.writer(buffer)` returns a `File.Writer` struct with an `.interface` field of type `std.Io.Writer`. Use `&w.interface` to get a `*std.Io.Writer` for calling `.print()` and `.flush()`.
+
+5. **ArrayList API (reinforced)**: This is the third lesson hitting this pitfall. The 0.15.2 `std.ArrayList` = `array_list.Aligned` (unmanaged). Must use `.empty` init, pass allocator to every method.
+
+## Token Usage
+
+Actual (Task tool): 99 API turns, $11.55 total (system replay $0.71, context replay $7.62, cache writes $2.18, output $1.05). System context: 14,249 tokens.
+
+Cost breakdown: context replay 66%, cache writes 19%, output 9%, system replay 6%.
+
+Compared to Lesson 07 (Git Internals): 61 turns / $6.79 -- 70% more expensive. The higher cost reflects: 12 exercises building a full crypto pipeline, 3 compile-fix cycles (ArrayList x3), 1 runtime debug cycle (parseFromSlice dangling pointers), 1 CLI debug cycle (bufferedReaderSize + buffer aliasing), and a context compaction mid-session. The context replay dominance (66%) suggests too many tool round-trips -- future lessons should batch more aggressively.
