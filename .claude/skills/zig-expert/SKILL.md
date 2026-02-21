@@ -7,15 +7,12 @@ description: Use when writing, reviewing, debugging, or migrating Zig 0.15.2 cod
 
 ## On Load: Skill Discovery
 
-On first use in a session, scan the available skills listed in the system prompt and create/update `.zig-expert.md` in the project root. This file maps complementary skills to when they should be invoked during Zig work:
+A SessionStart hook populates `.zig-expert.json` with all available skills (name + trigger). On first load, read this file and add a `"summary"` field (one sentence: what it does) to each skill relevant to Zig work. See CLAUDE.md "Skill Discovery" for details.
 
-- **Workflow skills** — TDD, debugging, code review, verification, plan writing
-- **Quality skills** — code simplification, writing clarity
-- **Meta skills** — writing-skills (required for any skill edits)
-
-Format: for each relevant skill, one line with the skill name and a concise trigger condition. Skip skills that don't apply to Zig development. The file is gitignored — it reflects whatever skills the current user has installed.
-
-If `.zig-expert.md` already exists and the available skills haven't changed, skip regeneration.
+Key skills for Zig lesson work:
+- **writing-skills** — required before any SKILL.md edit
+- **verification-before-completion** — required before claiming work is done
+- **systematic-debugging** — invoke on compile failures or test failures
 
 ## How Zig Thinks
 

@@ -120,6 +120,12 @@ When using subagents (Task tool) for lessons:
 3. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
 4. **RAG usage** — The subagent should use `mcp__ragling__rag_search` to look up API details, pitfalls, and patterns *during* exercises, not just before. Search before coding each exercise if unsure about an API.
 
+## Skill Discovery
+
+On session start, a hook runs `.claude/scripts/scan-skills.py` which scans all skills and writes `.zig-expert.json` with their names and trigger descriptions. On first load, read this file and add a one-sentence `"summary"` field to each skill entry that is relevant to Zig development work (what the skill does, not when to trigger it). Skip skills that don't apply. The file is gitignored.
+
+When launching lesson subagents, include the relevant skill names and summaries in the prompt so the subagent knows which skills to invoke (it has the Skill tool but can't see the skill list).
+
 ## Self-Update Protocol
 
 This file, the skill at `.claude/skills/zig-expert/SKILL.md`, and the skill references should all be kept in sync as the project evolves:

@@ -13,9 +13,10 @@ docs/
 opt/*
 !opt/local-rag
 
-# Claude config (allow zig-expert skill through)
+# Claude config (allow zig-expert skill and scripts through)
 .claude/*
 !.claude/skills/
+!.claude/scripts/
 .claude/skills/*
 !.claude/skills/zig-*/
 
@@ -28,6 +29,7 @@ rag/
 # Agent scratch space
 MEMORY.md
 .zig-expert.md
+.zig-expert.json
 
 # nix/direnv
 .direnv/
