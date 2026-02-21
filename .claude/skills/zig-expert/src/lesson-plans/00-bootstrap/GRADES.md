@@ -532,7 +532,7 @@ Total compile failures: 1
 
 ---
 
-# 00-bootstrap Plan: Final Self-Evaluation Report
+# 00-bootstrap Plan: Foundation Lessons Self-Evaluation (L01-L06)
 
 ## Overall Performance
 
@@ -2250,3 +2250,164 @@ Total compile failures: 1
 | Phase 2 (Q5-Q8) | 18 | $2.59 |
 | Phase 3 (Q9-Q12) | 27 | $4.04 |
 | **Total** | **67** | **$8.50** |
+
+---
+
+# 00-bootstrap Plan: Final Self-Evaluation Report (Complete)
+
+## Overall Performance
+
+| # | Lesson | Type | Score | Pct | Grade | Compile Fails | Known-Pitfall Fails |
+|---|--------|------|-------|-----|-------|---------------|---------------------|
+| 01 | Core Language Fundamentals | Foundation | 180/200 | 90% | A | 1 | 1 |
+| 02 | Standard Library Essentials | Foundation | 200/200 | 100% | A | 0 | 0 |
+| 03 | Error Handling & Allocators | Foundation | 194/200 | 97% | A | 1 | 0 |
+| 04 | Comptime & Metaprogramming | Foundation | 194/200 | 97% | A | 5 | 1 |
+| 05 | Idioms & Design Patterns | Foundation | 198/200 | 99% | A | 2 | 0 |
+| 06 | Concurrency & Threading | Foundation | 199/200 | 99.5% | A | 1 | 0 |
+| 07 | Hex Dump | Applied | 58/60 | 97% | A | 1 | 0 |
+| 08 | Huffman Compression | Applied | 58/60 | 97% | A | 2 | 0 |
+| 09 | Stream Editor | Applied | 58/60 | 97% | A | 2 | 0 |
+| 10 | HTTP Server | Applied | 59/60 | 98% | A | 1 | 0 |
+| 11 | Load Balancer | Applied | 58/60 | 97% | A | 1 | 1 |
+| 12 | Git Internals | Applied | 57/60 | 95% | A | 3 | 0 |
+| 08b | Password Manager | Applied (single) | 49/60 | 82% | B | 5 | 3 |
+| 09b | IRC Client | Applied (phased) | 59/60 | 98% | A | 1 | 0 |
+| 10b | MCP Server | Applied (phased) | 50/60 | 83% | B | 6 | 3 |
+| 11b | LSP Server | Applied (phased) | 56/60 | 93% | A | 4 | 0 |
+| 12b | Redis Server | Applied (phased) | 56/60 | 93% | A | 3 | 0 |
+| | **Foundation Total** | | **1165/1200** | **97.1%** | **A** | **10** | **2** |
+| | **Applied Total** | | **618/660** | **93.6%** | **A** | **29** | **7** |
+| | **Grand Total** | | **1783/1860** | **95.9%** | **A** | **39** | **9** |
+
+Note: Lessons 01-12 use the original numbering from the quiz files. Lessons 08b-12b are the second run of applied lessons (08b = Password Manager through 12b = Redis Server) using phased execution starting at 09b.
+
+## Compile Failure Analysis
+
+39 compile failures across 300 exercises (13% failure rate). Categorized:
+
+| Category | Count | Lessons | Description |
+|----------|-------|---------|-------------|
+| ArrayList .init() vs .empty | 8 | L01, L06(LB), L08b, L10b(x3) | Training data shows .init(allocator); 0.15.2 uses .empty |
+| Comptime return types | 4 | L04 | Cannot return []const u8 from comptime block in runtime fn |
+| Memory ownership | 5 | L08b, L10b, L11b | Double-free, dangling pointers, intermediate alloc leaks |
+| Type system strictness | 4 | L05, L08b, L11b | Sentinel types, slice constness, const/var receivers |
+| Dead code / unused vars | 3 | L08(Huff), L09(SE), L12(Git) | Zig rejects dead code after return, unused params |
+| API misuse | 5 | L03, L06(Conc), L10b, L12b | Error set exhaustiveness, std.time.sleep, missing methods |
+| Control flow | 3 | L12(Git), L10b | Catch block types, labeled breaks, function scope |
+| I/O patterns | 3 | L07(Hex), L08b, L12b | stdout API, bufferedReaderSize, TCP fragmentation |
+| Test assertions | 2 | L08(Huff), L12b | Off-by-one in expected values |
+| Parameter shadowing | 1 | L05 | Param name shadows method |
+| Redundant comptime | 1 | L04 | comptime keyword in already-comptime scope |
+
+### The ArrayList Problem
+
+The single most damaging error class. Eight occurrences, nine known-pitfall penalty points. The root cause: `json.ObjectMap.init(gpa)` and `json.Array.init(gpa)` use the stored-allocator pattern. After writing JSON code, the `.init(allocator)` pattern bleeds into `ArrayList` usage. The SKILL.md collection initialization table, added after L10b, eliminated this error class entirely — zero ArrayList failures in L11b and L12b.
+
+### Known-Pitfall Violations
+
+9 known-pitfall violations across 300 exercises (3%). All follow one pattern: the agent reverts to training-data behavior under cognitive load. The skill file documents the correct pattern, but the old pattern has stronger weight in the model's parameters. The double penalty (2 points) provides pressure to consult the skill, but cannot override parameter-level habits entirely.
+
+| Lesson | Violation | Points Lost |
+|--------|-----------|-------------|
+| L01 | ArrayList.allocator field access | -1 |
+| L04 | Redundant comptime in struct const | -2 |
+| L07(Hex) | std.io.getStdErr() instead of File.stderr() | -2 |
+| L06(LB) | ArrayList.init(alloc) instead of .empty | -2 |
+| L08b Q7 | ArrayList.init(alloc) | -2 |
+| L08b Q12 | ArrayList.init(alloc) | -2 |
+| L10b Q9 | ArrayList.init(alloc) | -2 |
+| L10b Q10 | ArrayList.init(alloc) | -2 |
+| L10b Q12 | ArrayList.init(alloc) | -2 |
+| | **Total** | **-17** |
+
+## Improvement Trajectory
+
+### Foundation Lessons (single-agent)
+
+90% → 100% → 97% → 97% → 99% → 99.5%
+
+Clean upward trend. The L01 baseline (90%) reflected unfamiliarity with 0.15.2 APIs. By L06, the skill file covered enough ground for near-perfect scores.
+
+### Applied Lessons (single-agent, L07-L12)
+
+97% → 97% → 97% → 98% → 97% → 95%
+
+Stable at 95-98%. The slight dip at L12 (Git Internals) reflects the highest complexity — SHA-1, binary formats, C zlib interop. Cost also peaked: $6.79, 61 turns.
+
+### Applied Lessons (phased execution, L08b-L12b)
+
+82% → 98% → 83% → 93% → 93%
+
+More variance than single-agent runs. L08b (82%) was the last single-context lesson — context bloat degraded late exercises. L09b (98%) validated the phased protocol. L10b (83%) exposed the ArrayList/JSON interference pattern. L11b and L12b (93% each) stabilized after the SKILL.md refactoring.
+
+## Cost Summary
+
+| Lesson | Turns | Cost | $/Exercise |
+|--------|-------|------|------------|
+| L01-L06 (Foundation) | ~350 | ~$6.00 est | ~$0.04 |
+| L07 Hex Dump | 54 | ~$2.50 est | $0.21 |
+| L08 Huffman | 62 | ~$3.00 est | $0.25 |
+| L09 Stream Editor | 45 | ~$3.00 est | $0.25 |
+| L10 HTTP Server | 75 | ~$3.50 est | $0.29 |
+| L11 Load Balancer | 37 | $3.67 | $0.31 |
+| L12 Git Internals | 61 | $6.79 | $0.57 |
+| L08b Password Manager | 99 | $11.55 | $0.96 |
+| L09b IRC Client | 47 | $4.51 | $0.38 |
+| L10b MCP Server | 81 | $9.26 | $0.77 |
+| L11b LSP Server | 61 | $7.49 | $0.62 |
+| L12b Redis Server | 67 | $8.50 | $0.71 |
+
+Key observations:
+- **Phased execution** caps per-phase context at ~15-27 turns instead of 40-99, reducing worst-case O(n^2) costs.
+- **Compile failures dominate cost.** L10b Phase 3 (53 turns, $5.66) consumed 61% of the lesson budget on 33% of exercises.
+- **The cheapest lesson** was L09b IRC Client ($4.51, 1 failure). **The most expensive** was L08b Password Manager ($11.55, 5 failures in a single context).
+
+## What the Skill Learned
+
+The SKILL.md file grew from 0 to ~400 lines across 17 lessons. Its contents:
+
+**Principles (4):** Explicit allocator-passing, comptime = same language earlier, errors = flat value sets, safety without runtime cost. These rarely change and provide reasoning frameworks for novel situations.
+
+**API Reference (~150 lines):** Collection initialization table, memory ownership rules, I/O patterns, JSON serialization, filesystem, networking, crypto, CLI args, build system. Each entry traces to a compile failure.
+
+**Decision Frameworks (7):** Allocator selection (9 cases), error handling (5 patterns), comptime vs runtime (5 signals), data structure selection (12 types), concurrency primitives (8 types), custom allocator VTable, atomics operations. These codify judgment calls the agent makes repeatedly.
+
+**Style Rules (8):** Zig idioms that diverge from other languages — payload captures over .?, StaticStringMap for dispatch, defer adjacent to allocation, anytype writers, create-once resources, honor accepted allocators, custom format specifiers, exhaustive switch.
+
+**Compiler Gotchas (~15):** One-liners for errors the compiler rejects. Each maps an error message to its fix.
+
+## Skill Gaps
+
+These topics were not exercised or were only partially covered:
+
+1. **async I/O / io_uring** — Not available in Zig 0.15.2 (removed in 0.12), but the event-loop patterns would apply if re-added.
+2. **build.zig** — Only documented in reference, never exercised. A build-system lesson would test `build.zig.zon`, module dependencies, custom build steps.
+3. **C interop beyond zlib** — L12 used `@cImport` for zlib. Broader C interop (struct layout, callback conventions, packed types) needs dedicated exercises.
+4. **SIMD** — Documented in systems-reference, never exercised.
+5. **Allocator internals** — Custom VTable documented but never implemented from scratch.
+6. **Cross-compilation and platform differences** — macOS-specific stat fields discovered incidentally; systematic cross-platform testing absent.
+7. **Error handling at scale** — Small programs use inferred error sets. Production code needs explicit error set design, which was not tested.
+
+## Process Observations
+
+### What Worked
+
+1. **Two-mode lesson cycle.** Separating exercise from reflection produces better skill updates. The agent writes better analysis when not simultaneously holding code in context.
+2. **Phased execution for applied lessons.** Fresh contexts prevent context bloat. L09b (phased, 98%) outperformed L08b (single-context, 82%) on a harder quiz.
+3. **Collection initialization table.** The single most effective skill entry. After adding it (post-L10b), ArrayList failures dropped to zero.
+4. **RAG for API lookups.** Searching stdlib source before coding prevents API misuse. Lessons where the agent searched RAG mid-exercise had fewer failures.
+
+### What Didn't Work
+
+1. **One-liner gotcha entries.** Early skill updates were incident reports ("L07 used wrong API"). These cluttered the skill without teaching general patterns. The mid-plan refactoring (post-L11b) consolidated them into themed sections.
+2. **Single-context applied lessons.** L08b proved that 12 exercises in one context degrades quality. By exercise 10, compile-fix cycles cost 10x what they cost at exercise 2.
+3. **Double penalty as sole deterrent.** The -2 point penalty for known pitfalls provides incentive to read the skill, but cannot prevent reversion to training-data patterns under load. The structural fix (clearer table format) worked better than the penalty alone.
+
+### Recommendations for Next Plan
+
+1. **Build system lesson.** Create a `build.zig` from scratch, add dependencies, custom steps, test integration.
+2. **C interop lesson.** Wrap a non-trivial C library, handle callbacks, manage mixed memory.
+3. **Error handling design lesson.** Design explicit error sets for a multi-module program.
+4. **Keep phased execution.** 3 phases of 4 exercises is the right granularity for applied lessons.
+5. **Front-load the collection init table.** Any new collection types should be added to the table before the first exercise that uses them.
