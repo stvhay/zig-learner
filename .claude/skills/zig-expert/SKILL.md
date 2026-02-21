@@ -66,17 +66,31 @@ Debug and ReleaseSafe keep all safety checks (bounds, overflow, null deref → p
 
 These changed from 0.14. Training data overwhelmingly shows the OLD way. Full pitfall list: **pitfalls-reference.md**.
 
-**STOP — Read this before writing ANY ArrayList code:** `ArrayList` in 0.15.2 uses `.empty` init and passes allocator to EVERY method. The old `.init(gpa)` / `.append(val)` pattern DOES NOT EXIST. This mistake has occurred in 8+ exercises across 5 lessons. If you write `.init(` for an ArrayList, you are wrong.
+**STOP — Read this before writing ANY ArrayList code:** `ArrayList` in 0.15.2 uses `.empty` init and passes allocator to EVERY method. The old `.init(gpa)` / `.append(val)` pattern DOES NOT EXIST. This mistake has occurred in 11+ exercises across 6 lessons. If you write `.init(` for an ArrayList, you are wrong.
+
+**TRAP — json.Array uses `.init(allocator)` but ArrayList uses `.empty`:** When building JSON in the same file as other data structures, the `.init(allocator)` pattern from `json.Array`/`json.ObjectMap` bleeds into `ArrayList` usage. **Check every init call against the type.**
 
 ```zig
 // ⚠️ ArrayList: .empty + per-method allocator — NEVER .init(gpa), NEVER .append(val)
-// This is the #1 recurring mistake (hit in 8+ exercises). The old Managed API is GONE.
+// This is the #1 recurring mistake (hit in 11+ exercises). The old Managed API is GONE.
 var list: std.ArrayList(i32) = .empty;   // NOT .init(gpa)
 defer list.deinit(gpa);                  // NOT .deinit()
 try list.append(gpa, 42);               // NOT .append(42)
 
 // HashMap: .init(gpa) — stored allocator (inconsistent with ArrayList!)
 var map = std.AutoHashMap(K, V).init(gpa);
+
+// ⚠️ JSON types use STORED allocator (.init) — opposite of ArrayList!
+// json.ObjectMap = StringArrayHashMap(Value) — stored allocator
+// json.Array = array_list.Managed(Value) — stored allocator (NOT std.ArrayList!)
+var obj = std.json.ObjectMap.init(gpa);  // .init(allocator) — correct
+defer obj.deinit();
+try obj.put("key", .{ .string = "value" });
+var arr = std.json.Array.init(gpa);      // .init(allocator) — correct
+defer arr.deinit();                      // no arg — allocator is stored
+try arr.append(.{ .string = "item" });
+// For nested JSON objects: use ArenaAllocator — ObjectMap.deinit() does NOT
+// recursively free nested objects. Arena frees everything at once.
 
 // GPA: value literal (NOT .init{})
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
@@ -124,6 +138,10 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 // Function params shadow same-named methods — rename to avoid compile error
 // `_ = x;` is compile error if x was mutated — restructure to avoid the variable
 // catch block value: `const x = expr catch blk: { ...; break :blk fallback; };`
+// Error set exhaustiveness: concrete reader types have known error sets — `else` is
+//   unreachable if all variants are covered. Use bare `catch` when mapping all to one value.
+//   Example: FixedBufferStream reader only has StreamTooLong — `else => err` is compile error.
+// StringHashMap key/value ownership: if key_ptr.* and value.name alias the same alloc, free once only
 
 // C zlib (std.compress.flate.Compress has @panic("TODO") — pitfall #38)
 const c = @cImport(@cInclude("zlib.h"));
@@ -285,6 +303,8 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Need | Use |
 |------|-----|
 | Dynamic array | `ArrayList` (`.empty`, per-method alloc) |
+| JSON array | `json.Array` (`.init(gpa)` — Managed, stored alloc) |
+| JSON object | `json.ObjectMap` (`.init(gpa)` — stored alloc) |
 | Key→value map | `AutoHashMap`/`StringHashMap` (`.init(gpa)`) |
 | Stable pointers across growth | `SegmentedList` |
 | Cache-friendly field iteration | `MultiArrayList` (SoA layout) |

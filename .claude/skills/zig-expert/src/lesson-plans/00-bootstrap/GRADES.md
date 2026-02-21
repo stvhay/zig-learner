@@ -1591,3 +1591,268 @@ Compared to Lesson 07 (Git Internals): 61 turns / $6.79 -- 70% more expensive. T
 | **Total** | **47** | **4.51** |
 
 Cost per exercise: $0.38. Cost per point: $0.076.
+
+---
+
+# Lesson 10: MCP Server (Applied) — Grades
+
+## Phase 1 (Q1–Q4)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 1  | Newline-Delimited JSON Transport | 5 | 4 | -1 (1 compile fail, new mistake) | B |
+| 2  | JSON-RPC Message Handling | 5 | 5 | 0 | A |
+| 3  | Initialize Handshake | 5 | 5 | 0 | A |
+| 4  | Tool Registration and Listing | 5 | 5 | 0 | A |
+| **Total** | | **20** | **19** | **-1** | **A (95%)** |
+
+Code quality: A (no additional penalty). All solutions are well-structured with proper error handling, clean separation of concerns, and idiomatic Zig patterns.
+
+### Detailed Notes
+
+**Q1 — Newline-Delimited JSON Transport (4/5, B)**
+- Implemented `readMessage(reader, buf)` and `writeMessage(writer, json)` functions.
+- Tests: round-trip, multiple messages, empty line handling, EOF, embedded newline rejection, line too long.
+- **Compile failure** (-1 pt, new mistake): Used `else => err` in error switch for `readUntilDelimiterOrEof`, but the `FixedBufferStream` reader's error set only contains `StreamTooLong` — making the `else` prong unreachable. Zig rejects unreachable switch prongs. Fix: changed to bare `catch` since all errors map to `MessageTooLong` anyway.
+- All 6 tests pass after fix.
+
+**Q2 — JSON-RPC Message Handling (5/5, A)**
+- Implemented `classifyMessage`, `formatResult`, `formatError`, plus `WithValueId` variants for string id support.
+- Uses `json.ObjectMap` (StringArrayHashMap) with stored-allocator `.init(allocator)` pattern.
+- Serialization via `std.fmt.allocPrint(alloc, "{f}", .{json.fmt(value, .{})})`.
+- All 5 tests pass on first compile and first run.
+
+**Q3 — Initialize Handshake (5/5, A)**
+- Implemented `Server` struct with state machine: `.not_initialized` -> `.initializing` -> `.ready`.
+- `handleMessage` dispatches to `handleRequest`/`handleNotification` based on presence of `id` field.
+- Initialize returns protocolVersion, capabilities (tools/resources/prompts), serverInfo.
+- Pre-initialization requests return error -32002. Duplicate initialize returns error -32600.
+- All 4 tests pass on first compile and first run.
+
+**Q4 — Tool Registration and Listing (5/5, A)**
+- Implemented `ToolRegistry` with fixed-size array (no allocator needed for registry itself).
+- `ToolDef` stores name, description, and input_schema as `json.Value`.
+- Schema builders create valid JSON Schema with type/properties/required fields.
+- `formatToolsList` builds the tools/list response as valid JSON.
+- Used `json.Array` (Managed, stored allocator) not `ArrayList` (unmanaged, `.empty`).
+- All 4 tests pass on first compile and first run.
+
+### Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Q1 | 1 | unreachable else prong | FixedBufferStream reader error set only has StreamTooLong | No |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+### Key Patterns Used
+
+1. **json.ObjectMap = StringArrayHashMap(Value)**: Uses `.init(allocator)` (stored allocator), `.put(key, value)`.
+2. **json.Array = array_list.Managed(Value)**: Uses `.init(allocator)` (stored allocator), `.append(item)`. NOT the same as `std.ArrayList` which uses `.empty`.
+3. **JSON serialization**: `std.fmt.allocPrint(alloc, "{f}", .{json.fmt(value, .{})})` — no stringify in 0.15.2.
+4. **fixedBufferStream**: `.reader()` returns `GenericReader` with `readUntilDelimiterOrEof`. `.writer()` returns `GenericWriter` with `writeAll`.
+5. **Error set exhaustiveness**: When catching errors from a concrete type (not `anytype`), the error set is known at compile time. `else` prong is rejected if all cases are covered. Use bare `catch` when mapping all errors to one value.
+
+## Phase 2 (Q5-Q8)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 5 | Tool Execution (tools/call) | 5 | 5 | 0 | A |
+| 6 | File System Tools | 5 | 5 | 0 | A |
+| 7 | Resources | 5 | 5 | 0 | A |
+| 8 | Prompts | 5 | 5 | 0 | A |
+| **TOTAL** | | **20** | **20** | **0** | **A** |
+
+**Phase 2: 20/20 = 100% = A**
+
+### Detailed Notes
+
+**Q5 -- Tool Execution (5/5, A)**
+- Implemented `ToolRegistry.handleToolCall` dispatching to registered tool handlers via function pointers.
+- Tool handlers receive allocator + `json.ObjectMap` arguments and return `ToolResult{content, is_error}`.
+- Required argument validation: checks tool's inputSchema `.required` array against provided arguments.
+- Unknown tool returns JSON-RPC error -32602. Missing required args return `isError: true` tool result.
+- `extractNumber` handles both `.integer` and `.float` JSON values for the `add` tool.
+- All 4 tests pass on first compile and first run.
+
+**Q6 -- File System Tools (5/5, A)**
+- Implemented `readFile`, `writeFile`, `listDirectory` — all accept a `root_dir: fs.Dir` parameter.
+- Security: `isPathSafe` rejects any path containing ".." component (both `/` and `\` separators).
+- `readFile` uses `file.readToEndAlloc` with 1MB limit. File-not-found returns `isError: true`.
+- `listDirectory` uses `Dir.openDir(path, .{.iterate = true})` then `dir.iterate().next()` loop.
+- Entries formatted as `<F|D> <name>\n`. Used `std.ArrayList(u8)` with `.empty` + per-method allocator correctly.
+- Used `testing.tmpDir(.{})` for test isolation. All 5 tests pass on first compile and first run.
+
+**Q7 -- Resources (5/5, A)**
+- `ResourceManager` with fixed-size array registry, request counter, and dynamic handler function pointers.
+- Three resources: `config://server` (JSON), `stats://usage` (text), `help://commands` (text).
+- `config://server` dynamically includes tools count. `stats://usage` dynamically includes request count.
+- `handleResourceRead` returns error -32002 for unknown URI per MCP spec.
+- Stats resource updates verified: 0 initially, 3 after `trackRequest()` calls.
+- All 5 tests pass on first compile and first run.
+
+**Q8 -- Prompts (5/5, A)**
+- `PromptRegistry` with `PromptDef` structs containing argument definitions and handler function pointers.
+- Three prompts: `greet` (required: name), `summarize` (required: text), `code_review` (required: code, optional: language).
+- Required argument validation: iterates `prompt.arguments` checking `.required` flag.
+- `prompts/get` returns `messages` array with `{role, content: {type, text}}` structure.
+- Unknown prompt returns -32602. Missing required arg returns -32602.
+- All 5 tests pass on first compile and first run.
+
+### Compile Failure Summary
+
+No compile failures in Phase 2.
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| (none) | | | | |
+
+Total compile failures: 0
+
+### Key Patterns Used
+
+1. **Function pointers in structs**: Used `*const fn(Allocator, ObjectMap) ToolResult` for tool dispatch -- avoids virtual dispatch overhead.
+2. **Arena allocator for JSON building**: All JSON construction uses arena allocator, letting the arena free everything at once.
+3. **ArrayList vs json.Array**: Used `std.ArrayList(u8)` (`.empty`, per-method allocator) for byte buffers but `json.Array` (`.init(allocator)`, stored allocator) for JSON arrays. Kept the distinction correct.
+4. **Dir.openDir with .iterate=true**: Required for `dir.iterate()` to work. OpenOptions struct has `iterate: bool = false` by default.
+5. **testing.tmpDir**: Clean way to create isolated temp directories for filesystem tests, with automatic cleanup.
+6. **Path traversal defense**: Split path by `/` and check each component for `..` rather than simple substring search (which would false-positive on `...` or embedded `..` in filenames).
+
+## Phase 3 (Q9–Q12)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 9  | Logging and Notifications | 5 | 3 | -2 (1 compile fail, known: ArrayList .init) | C |
+| 10 | Dynamic Tool Registration | 5 | 2 | -2 (1 compile fail, known: ArrayList .init), -1 (1 runtime crash, new: double-free) | F |
+| 11 | Input Validation and Error Handling | 5 | 5 | 0 | A |
+| 12 | End-to-End Test Harness | 5 | 1 | -2 (1 compile fail, known: ArrayList .init), -1 (1 test leak, new: JSON arena), -1 (1 compile fail, new: missing fn + const/var) | F |
+| **Total** | | **20** | **11** | **-9** | **F (55%)** |
+
+Code quality: A (no additional penalty). All final solutions are clean, well-structured, and leak-free. The deductions are entirely from compile/test iteration, not from the final code quality.
+
+### Detailed Notes
+
+**Q9 — Logging and Notifications (3/5, C)**
+- Implemented `Logger` struct with `formatNotification` (JSON-RPC notification), `logInitialized`, `logToolCall`, `logError`.
+- Notifications collected in ArrayList for testability; in production these would go to stdout.
+- `notifications/tools/list_changed` notification supported via `emitToolsListChanged`.
+- **Compile failure #1 (-2 pts, known):** Used `std.ArrayList([]const u8).init(allocator)` instead of `.empty` + per-method allocator. This is the #1 known pitfall in SKILL.md. Fixed to `.empty` and `append(self.allocator, ...)` / `deinit(self.allocator)`.
+- All 4 tests pass after fix.
+
+**Q10 — Dynamic Tool Registration (2/5, F)**
+- Implemented `DynamicToolRegistry` with `StringHashMap(DynamicTool)` for runtime tools.
+- Template interpolation: `interpolateTemplate` replaces `{key}` patterns from argument map.
+- Built-in tool protection: `isBuiltin` check prevents unregistering hello/add/echo.
+- `notifications/tools/list_changed` emitted on register/unregister.
+- **Compile failure #1 (-2 pts, known):** Same ArrayList `.init(allocator)` mistake. Fixed.
+- **Runtime failure #1 (-1 pt, new):** Double-free in `deinit` — `entry.key_ptr.*` and `entry.value_ptr.name` point to the same allocation (both are the `name_owned` string passed to `StringHashMap.put`). Freeing both is a double-free. Fix: only free via key, skip `.name`.
+- All 7 tests pass after fixes.
+
+**Q11 — Input Validation and Error Handling (5/5, A)**
+- Implemented `validateMessage` (parse + structural validation), `validateMethod` (known method check), `validateArgumentTypes` (schema type checking), `isEof` (shutdown signal).
+- JSON parse error → -32700. Missing jsonrpc → -32600. Unknown method request → -32601. Unknown notification → silently ignored.
+- Type checking: validates string/number/boolean/object/array types against schema.
+- All 9 tests pass on first compile and first run. Zero deductions.
+
+**Q12 — End-to-End Test Harness (1/5, F)**
+- Implemented integrated `McpServer` with full protocol: initialize, tools/list, tools/call, resources/list, resources/read, prompts/list, prompts/get.
+- `McpClient` helper: `sendRequest`, `sendNotification`, `sendRaw` methods abstracting JSON building.
+- Tests all 12 steps from the spec: init → tools → resources → prompts → invalid JSON → clean shutdown.
+- Uses in-memory arena-based JSON building (no child process).
+- **Compile failure #1 (-2 pts, known):** ArrayList `.init(allocator)` — same recurring mistake.
+- **Test failure #1 (-1 pt, new):** Memory leaks from nested JSON objects. `json.ObjectMap.deinit()` only frees the top-level entries array, NOT recursively nested ObjectMaps/Arrays. Solution: use ArenaAllocator for all JSON building, dupe final strings to base allocator.
+- **Compile failure #2 (-1 pt, new):** After rewriting to use arena, had undeclared `buildResourcesList` function (was still a member of McpServer struct but called as free function) + `var` instead of `const` for unused ObjectMaps.
+- All tests pass after fixes.
+
+### Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Q9 | 1 | `has no member named 'init'` | ArrayList uses .empty, not .init(allocator) | Yes (#1 pitfall) |
+| Q10 | 1 | `has no member named 'init'` | Same ArrayList mistake | Yes (#1 pitfall) |
+| Q10 | 2 | Double free (runtime crash) | key_ptr.* and value_ptr.name share same allocation | No |
+| Q12 | 1 | `has no member named 'init'` | Same ArrayList mistake | Yes (#1 pitfall) |
+| Q12 | 2 | Memory leak (test fail) | Nested JSON objects not freed by top-level deinit | No |
+| Q12 | 3 | `undeclared identifier` + `var not mutated` | Missing free function + const correctness | No |
+
+Total compile/test failures: 6
+- Known pitfall violations: 3 (cost: -6 pts)
+- New mistakes: 3 (cost: -3 pts)
+
+### Key Patterns Used
+
+1. **Arena for JSON building**: All JSON object construction should use an arena allocator. The `json.ObjectMap.deinit()` only frees the entries array, not nested values. Arena frees everything at once.
+2. **ArrayList .empty (AGAIN)**: Despite being documented as the #1 pitfall, this mistake recurred in 3 of 4 exercises. The `json.Array` and `json.ObjectMap` types use stored-allocator `.init()`, but `std.ArrayList` uses `.empty` + per-method allocator. This distinction must be checked every time.
+3. **Shared pointer ownership**: When a HashMap key and a value field point to the same allocation, only free once. Track ownership clearly.
+4. **Template interpolation**: Simple `{key}` replacement via scanning for `{`/`}` delimiters and looking up in json.ObjectMap.
+5. **StringHashMap.fetchRemove**: Returns `?KV` struct with `.key` and `.value` fields. `.key` is `[]const u8`. Must cast/handle ownership carefully.
+
+## Consolidated Summary
+
+| Phase | Exercises | Max | Earned | Grade |
+|-------|-----------|-----|--------|-------|
+| 1     | Q1-Q4     | 20  | 19     | A (95%) |
+| 2     | Q5-Q8     | 20  | 20     | A (100%) |
+| 3     | Q9-Q12    | 20  | 11     | F (55%) |
+| **Total** | **Q1-Q12** | **60** | **50** | **B (83%)** |
+
+## Post-Lesson Reflection
+
+### Why does the ArrayList `.init(allocator)` mistake keep recurring?
+
+This is the third lesson (after Lessons 01 and 06) where `ArrayList.init(allocator)` caused compile failures, and this time it happened in 3 of 4 Phase 3 exercises. The root cause is not ignorance -- the pattern is documented prominently in SKILL.md. The problem is **interference from a closely related API that uses the opposite pattern**.
+
+In this lesson, exercises built JSON objects using `json.ObjectMap` (which is `StringArrayHashMap(Value)`) and `json.Array` (which is `array_list.Managed(Value)`). Both use `.init(allocator)` because they are **Managed** types that store the allocator internally. After writing several exercises with `.init(allocator)` for JSON types, the agent's working context was saturated with that pattern, and it carried over to `std.ArrayList` without checking.
+
+The failure mode is: *correct pattern for type A bleeds into type B when switching between them in the same file*. The skill entry warns about ArrayList in isolation, but does not explicitly contrast it with the JSON types that look similar but behave differently.
+
+### Patterns that caused compile/runtime failures
+
+1. **ArrayList `.init(allocator)` (known, 3 occurrences, -6 pts):** Recurred in Q9, Q10, Q12. Each time the fix was the same: `.empty` + per-method allocator. The proximity to `json.Array.init(allocator)` calls made the mistake automatic.
+
+2. **Error set exhaustiveness (new, Q1, -1 pt):** Used `else => err` in a catch switch for `readUntilDelimiterOrEof` on a `FixedBufferStream` reader. The concrete error set contains only `StreamTooLong`, so `else` is unreachable. Zig rejects unreachable switch prongs. Fix: bare `catch` when mapping all errors to a single result.
+
+3. **Double-free from shared pointer ownership (new, Q10, -1 pt):** A `StringHashMap` key and its value's `.name` field pointed to the same allocation. The `deinit` loop freed both, causing a double-free. Fix: track ownership explicitly -- free via key only, skip the alias.
+
+4. **Nested JSON object memory management (new, Q12, -1 pt):** `json.ObjectMap.deinit()` frees the entries array but does NOT recursively free nested ObjectMaps or Arrays. Solution: use `ArenaAllocator` for all JSON construction, then dupe final strings to the base allocator before arena teardown.
+
+5. **Missing function after refactoring (new, Q12, -1 pt):** After rewriting Q12 to use arena allocation, a method was called as a free function but still existed as a struct method. Also `var` for an ObjectMap that was never mutated after init. Both are standard Zig strictness issues.
+
+### Patterns that led to clean passes
+
+1. **json.ObjectMap + json.Array building:** Phase 1-2 used these types correctly throughout. The `.init(allocator)` + `.put(key, value)` / `.append(item)` pattern worked cleanly.
+2. **JSON serialization via `std.fmt.allocPrint` + `json.fmt`:** Consistent and correct across all phases.
+3. **Function pointers for tool dispatch:** Clean pattern for MCP tool/resource/prompt registries.
+4. **Arena allocator for request-scoped JSON:** Phase 2 used this correctly (all JSON built with arena, freed at request end).
+5. **Fixed-size registries avoiding allocator dependency:** Tool, resource, and prompt registries used fixed arrays instead of dynamic allocation where the maximum count was known.
+6. **`testing.tmpDir` for filesystem isolation:** Clean temp directory lifecycle in file system tool tests.
+
+### The json.ObjectMap / json.Array vs ArrayList asymmetry
+
+This is the critical insight from this lesson. In Zig 0.15.2:
+
+| Type | Init | Allocator | Why |
+|------|------|-----------|-----|
+| `std.ArrayList(T)` | `.empty` | Per-method (pass to `append`, `deinit`, etc.) | Unmanaged -- allocator not stored |
+| `json.Array` (`array_list.Managed(Value)`) | `.init(allocator)` | Stored at init | Managed -- allocator stored internally |
+| `json.ObjectMap` (`StringArrayHashMap(Value)`) | `.init(allocator)` | Stored at init | HashMap family -- always stores allocator |
+| `std.AutoHashMap(K,V)` | `.init(allocator)` | Stored at init | HashMap family -- always stores allocator |
+
+The trap: when building JSON in the same file as non-JSON data structures, the `.init(allocator)` pattern from JSON types contaminates ArrayList usage. The fix is to check every init call against the type -- if it is `ArrayList`, it must be `.empty`.
+
+## Token Usage
+
+| Phase | Turns | Cost ($) |
+|-------|-------|----------|
+| Phase 1 (Q1-Q4) | 18 | 2.06 |
+| Phase 2 (Q5-Q8) | 10 | 1.54 |
+| Phase 3 (Q9-Q12) | 53 | 5.66 |
+| **Total** | **81** | **$9.26** |
+
+Cost per exercise: $0.77. Cost per point: $0.185.
+
+Phase 3 consumed 61% of the total cost despite covering only 33% of exercises. The 53-turn count reflects 6 compile/test failures requiring fix cycles. The ArrayList `.init` mistake alone caused 3 of those cycles (-6 pts, ~$2-3 of wasted context replay). Phase 2 was the most efficient: 10 turns, $1.54, zero failures.
+
+Compared to Lesson 09 (IRC Client): 47 turns / $4.51 -- this lesson was 72% more turns and 105% more expensive. The cost inflation is entirely attributable to Phase 3's known-pitfall recurrences.
