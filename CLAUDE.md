@@ -42,7 +42,11 @@ Training is organized into **lesson plans** — numbered directories containing 
 
 ### Lesson Cycle
 
-Lessons run in two modes. The orchestrator launches mode 1, collects cost data, then resumes the same agent in mode 2.
+There are two lesson formats with different execution protocols.
+
+#### Foundation Lessons (single-agent)
+
+Foundation lessons have many independent exercises (typically 25). They run in a single subagent with two modes:
 
 **Mode 1 — Exercise:**
 1. Read quiz and SKILL.md (once each).
@@ -56,6 +60,33 @@ Lessons run in two modes. The orchestrator launches mode 1, collects cost data, 
 3. **Snippet curation** — If an exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/`. One small, commented, testable snippet per pattern.
 4. **Cost recording** — Write the cost data (provided by the orchestrator) into the GRADES.md Token Usage section.
 5. **Commit** — One commit per the Commit Strategy below (GRADES.md + SKILL.md + any new snippets together).
+
+#### Applied Lessons (phased execution)
+
+Applied lessons build one program across 12 exercises. To limit context bloat and O(n²) cost growth, they split into **3 phases of 4 exercises**, each in a fresh subagent. One Mode 2 subagent reflects afterward.
+
+**Phase structure:**
+
+| Phase | Exercises | Purpose |
+|-------|-----------|---------|
+| 1 | Q1–Q4 | Foundation — core data structures, protocol, basic I/O |
+| 2 | Q5–Q8 | Features — user interaction, concurrency, extended commands |
+| 3 | Q9–Q12 | Polish — advanced features, validation, end-to-end testing |
+
+**Phase N — Exercise** (fresh subagent, N = 1, 2, 3):
+1. Read quiz, SKILL.md, and the phase range (e.g., "Q5–Q8") from the orchestrator prompt.
+2. If N > 1, read prior phases' code from `artifacts/<lesson>/` to build on.
+3. Work through the phase's 4 exercises under the grading rubric.
+4. Write (Phase 1) or append (Phase 2–3) phase grades to GRADES.md.
+5. **Return.** Do not reflect, update SKILL.md, or commit.
+
+**Mode 2 — Self-assessment** (fresh subagent, after all 3 phases):
+1. Read all 3 phases' grades from GRADES.md.
+2. **Post-lesson reflection** — Identify patterns that caused compile failures; check if the skill covers them. Identify clean-pass patterns; verify the skill documents them. Flag stale skill entries.
+3. **Skill update** — Capture new knowledge. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing.
+4. **Snippet curation** — If an exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/`. One small, commented, testable snippet per pattern.
+5. **Cost recording** — Write the aggregated cost data (provided by the orchestrator) into the GRADES.md Token Usage section.
+6. **Commit** — One commit per the Commit Strategy below (GRADES.md + SKILL.md + any new snippets together).
 
 ### Output Directories
 
@@ -93,7 +124,9 @@ Every tool round-trip replays the full conversation. Cost grows **O(n²)** with 
 - **Minimize tool results.** Pipe verbose output through `head`, `tail`, or `grep`. Large compiler errors become context you replay forever.
 - **Fail less.** A compile-fix-recompile cycle costs 3 turns of replay. Use RAG/docs before writing, not after failing.
 
-**Cost measurement:** The orchestrator runs `.claude/scripts/session-cost.py` on the mode 1 transcript and provides the results when resuming for mode 2. The agent does not estimate its own token usage. Record the orchestrator-provided cost data in the GRADES.md `## Token Usage` section.
+**Phased execution caps context growth.** Applied lessons split into 3 phases of 4 exercises (see Lesson Cycle). Each phase starts a fresh subagent, capping turns at ~15 instead of 40+. This limits O(n²) replay cost per phase while preserving continuity through code on disk.
+
+**Cost measurement:** The orchestrator runs `.claude/scripts/session-cost.py` on each phase transcript and aggregates the results for Mode 2. The agent does not estimate its own token usage. Record the orchestrator-provided cost data in the GRADES.md `## Token Usage` section.
 
 The first run of each lesson establishes a cost baseline. Subsequent runs compare against it.
 
@@ -118,10 +151,11 @@ Never mix the two streams in a single commit.
 When using subagents (Task tool) for lessons:
 
 1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) cannot use MCP tools. Lesson subagents must run in **foreground**. MCP tools are allowlisted in `.claude/settings.local.json`.
-2. **Two-mode protocol** — Launch the subagent in mode 1 (exercise). After it returns, run `.claude/scripts/session-cost.py --compact` on the transcript at `~/.claude/projects/<project-path>/<session-id>/subagents/agent-<agent-id>.jsonl`. Resume the same agent in mode 2 with the cost JSON. The agent ID is returned by the Task tool.
-3. **Skill update is mandatory** — The mode 2 prompt must require SKILL.md updates when mistakes are found. Include: "You MUST edit SKILL.md if you discover any gap or error."
-4. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
-5. **RAG usage** — The subagent should use `mcp__ragling__rag_search` during exercises, not just before. Search before coding each exercise if unsure about an API.
+2. **Foundation lessons: two-mode protocol** — Launch the subagent in mode 1 (exercise). After it returns, run `.claude/scripts/session-cost.py --compact` on the transcript at `~/.claude/projects/<project-path>/<session-id>/subagents/agent-<agent-id>.jsonl`. Resume the same agent in mode 2 with the cost JSON. The agent ID is returned by the Task tool.
+3. **Applied lessons: phased protocol** — Launch 3 separate subagents (one per phase), each as a fresh Task invocation (not a resume). Each phase prompt includes: quiz file path, SKILL.md, exercise range (e.g., "Q5–Q8"), and path to prior phases' code in `artifacts/`. After all 3 phases complete, run cost analysis on all 3 transcripts and launch a fresh Mode 2 subagent with the aggregated cost data and all phases' grades.
+4. **Skill update is mandatory** — The mode 2 prompt must require SKILL.md updates when mistakes are found. Include: "You MUST edit SKILL.md if you discover any gap or error."
+5. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
+6. **RAG usage** — The subagent should use `mcp__ragling__rag_search` during exercises, not just before. Search before coding each exercise if unsure about an API.
 
 ### Orchestrator Reporting
 
