@@ -305,8 +305,11 @@ A local RAG (ragling) indexes all reference docs and Zig source code via MCP. **
 
 | Collection | Contents | When to use |
 |---|---|---|
-| `zig-references` | Language ref, API ref, pitfalls, comptime, systems | Look up syntax, API patterns, 0.15.2 changes, error fixes |
+| `zig-references` | Language ref, API ref, pitfalls, comptime, systems, stdlib API extracts | Look up syntax, API patterns, 0.15.2 changes, error fixes |
 | `zig-src` | Exercise `.zig` files + quiz specs (tree-sitter parsed) | Find working code examples, review past solutions |
+| `zig-stdlib` | Curated Zig 0.15.2 stdlib source (tree-sitter parsed) | Look up exact function signatures, struct fields, implementation details |
+
+**If RAG can't answer an API question**, add the missing reference: run `.claude/scripts/extract-stdlib-api.py` to regenerate stdlib API extracts, or fetch external docs with `WebFetch` and save to `references/`.
 
 ```
 rag_search(query="ArrayList append 0.15", collection="zig-references")

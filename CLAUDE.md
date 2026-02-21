@@ -164,6 +164,21 @@ zig build-exe path/to/program.zig      # compile a standalone program
 
 A local RAG ([ragling](https://github.com/aihaysteve/local-rag)) indexes skill references and code for semantic search. The MCP server starts automatically (configured in `.mcp.json`). Use `rag_search` to query; use `rag_index` to re-index after changes. The `rag/` symlinks (created by `.envrc.d/ragling.sh`) give ragling clean paths into `.claude/skills/zig-expert/`.
 
+### Collections
+
+| Collection | Type | Contents |
+|---|---|---|
+| `zig-references` | project | Hand-written reference docs + stdlib API extracts (`references/`) |
+| `zig-src` | code | Curated exercises and lesson plans (`src/`) — tree-sitter parsed |
+| `zig-stdlib` | code | Curated Zig 0.15.2 stdlib source — tree-sitter parsed |
+
+### Adding references
+
+If RAG can't answer an API question, the agent should add the missing reference material:
+- **Stdlib API gaps** — run `.claude/scripts/extract-stdlib-api.py` to regenerate `references/stdlib/` from the Nix store, then re-index `zig-references`.
+- **External docs** — fetch with `WebFetch`, save to `references/`, re-index.
+- **Code patterns** — curate into `src/exercises/`, re-index `zig-src`.
+
 ## Architecture
 
 ```
