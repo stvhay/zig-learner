@@ -958,3 +958,130 @@ Quality is good for an applied exercise. The regex engine uses a clean recursive
 - Estimated total tokens consumed: ~120,000 (input + output)
 - Number of tool calls: ~45
 - Tokens per exercise: ~10,000
+
+---
+
+# Lesson 05 (Applied): HTTP Web Server -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | TCP Listener - accept and echo | 5 | 0 | 5 | A |
+| 2 | Parse the request line | 5 | 0 | 5 | A |
+| 3 | Serve static files | 5 | 0 | 5 | A |
+| 4 | Support HEAD method | 5 | 0 | 5 | A |
+| 5 | Subdirectory and path handling | 5 | 0 | 5 | A |
+| 6 | Path traversal protection | 5 | 0 | 5 | A |
+| 7 | Connection keep-alive | 5 | 0 | 5 | A |
+| 8 | Concurrent connections with threads | 5 | 0 | 5 | A |
+| 9 | Response headers and HTTP compliance | 5 | 0 | 5 | A |
+| 10 | Error pages with HTML bodies | 5 | 0 | 5 | A |
+| 11 | Configurable root directory | 5 | 0 | 5 | A |
+| 12 | Access logging | 5 | 0 | 5 | A |
+| **TOTAL** | | **60** | **-1** | **59** | **A** |
+
+**Overall: 59/60 = 98.3% = A**
+
+**Compile failures: 1 (new mistake, -1 pt)**
+
+## Detailed Notes
+
+### Compile Failure #1 (-1 pt, new mistake)
+
+**Error:** Two issues in a single compile attempt: (1) unused local constant `version` from parsing the HTTP request line, and (2) `Dir.close()` requires `*Dir` (mutable pointer) but the variable was declared `const`.
+
+**Error messages:**
+- `error: unused local constant` for `version`
+- `error: expected type '*fs.Dir', found '*const fs.Dir'` — `Dir.close()` takes `*Dir`, but `const dir = openDir(...)` gives a `*const Dir` reference
+
+**Root cause:** The version string was extracted from the request line but never used (I only needed method and path). For the Dir issue, `openDir` returns a `Dir` value, but declaring it as `const` means `close()` (which takes `*Dir`) can't be called on it. Zig's mutability rules apply to method receivers: a method taking `*Self` requires the caller's variable to be `var`.
+
+**Fix:** Changed `version` to `_ = rest[second_space + 1 ..];` and changed `const dir` to `var dir`.
+
+### All Exercises: Functionally Correct
+
+After fixing the single compile error, all 12 exercises produced correct results verified with curl and nc:
+
+- Q1: Server accepts connection, prints raw request to stdout, returns "Hello, World!" — verified with curl
+- Q2: Request line parsing works (method, path, version extracted), loop accepts multiple connections, 400 Bad Request for malformed input — verified with curl + nc garbage
+- Q3: Static files served with correct Content-Type (html, css, json) and Content-Length, 404 for missing files — verified against all 5 test files
+- Q4: HEAD returns headers only (no body), Content-Length still correct, 405 for DELETE — verified with curl -I and curl -X DELETE
+- Q5: Subdirectory paths work (/subdir/nested.html), percent-decoding works (%2E → .), trailing slash → index.html — verified
+- Q6: All traversal patterns blocked with 403: /../etc/passwd, /%2e%2e/etc/passwd, /subdir/../../etc/passwd — verified with nc (bypassing curl's path normalization)
+- Q7: Keep-alive works (curl reuses connection for multiple requests), Connection: close honored, 5-second SO_RCVTIMEO timeout set
+- Q8: Concurrent connections work — slow client holds connection while fast clients respond immediately. Thread.spawn + detach pattern
+- Q9: All required headers present: Date (correct HTTP format with day-of-week), Server: zig-http/0.1, Content-Type, Content-Length, Connection
+- Q10: HTML error pages for 400, 403, 404, 405 with correct template format, Content-Type: text/html, HEAD errors return headers only
+- Q11: Custom port and root via args, validation for nonexistent directory (exit 1), invalid port (exit 1), defaults to port 8080 and ./www
+- Q12: Common Log Format logging with mutex protection, correct date format [DD/Mon/YYYY:HH:MM:SS +0000], body_size 0 for HEAD
+
+### Architecture Notes
+
+The final program is approximately 410 lines, organized as:
+- `main()` — CLI args, directory validation, server setup, accept loop
+- `handleConnection()` — per-connection handler with keep-alive loop, request parsing, URL decoding, traversal check, file dispatch
+- `serveFile()` — file reading, Content-Type detection, header building, response writing
+- `sendError()` — HTML error page generation, HEAD-aware body suppression
+- `shouldClose()` — Connection: close header detection
+- `containsTraversal()` — pre-filesystem path traversal detection
+- `urlDecode()` / `hexVal()` — percent-encoding decode
+- `getContentType()` — extension → MIME type mapping
+- `formatHttpDate()` — EpochSeconds → HTTP date string
+- `logRequest()` — thread-safe Common Log Format output
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Q3-Q12 build | 1 | unused local + const Dir | Unused `version` var; `Dir.close()` needs `*Dir` (mutable) | No |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Dir.close() requires mutable reference**: `std.fs.Dir.close()` takes `*Dir` (mutable self), so the variable holding the opened Dir must be `var`, not `const`. This is a general Zig principle: methods taking `*Self` require the caller's variable to be mutable. Added to SKILL.md.
+
+2. **Unused locals are compile errors**: Even if you plan to use a variable later (like the HTTP version string), if the current code path doesn't reference it, Zig rejects it. Use `_ = expr;` to explicitly discard. This is well-known but easy to hit when building incrementally.
+
+### Patterns that led to clean passes
+
+1. **std.net.Address.parseIp4 + listen + accept**: The networking primer in the quiz matched the 0.15.2 API exactly. Used correctly throughout.
+2. **SO_RCVTIMEO via setsockopt**: `posix.timeval{.sec=5, .usec=0}` + `posix.setsockopt(handle, SOL.SOCKET, SO.RCVTIMEO, mem.asBytes(&timeout))` worked first try.
+3. **Thread.spawn + detach**: Clean pattern for thread-per-connection. No need for join since connections are independent.
+4. **EpochSeconds date computation**: `getEpochDay()` → `calculateYearDay()` → `calculateMonthDay()` chain, plus manual day-of-week via `@mod(day + 4, 7)`. No `calculateDayOfWeek()` method exists.
+5. **IP address extraction**: `addr.in.sa.addr` gives u32 in network byte order, extract octets via `@truncate(ip >> (N*8))`.
+6. **Path traversal pre-check**: Checking for ".." components BEFORE filesystem access avoids the realpathAlloc pitfall (fails for nonexistent paths → 404 not 403).
+7. **URL percent-decoding**: Standard `%XX` → byte pattern with hex digit parsing via `?u4` return type.
+8. **Mutex + atomic write for logging**: Format log line in local buffer first, then lock mutex and `writeAll` atomically — prevents interleaved output from concurrent threads.
+9. **std.fs.File.stdout()**: Used the correct 0.15.2 API, no regression to old getStdOut pattern.
+10. **readFileAlloc for file serving**: Clean pattern for serving small static files — read entire file, send headers + body.
+
+### Skill knowledge base updates made
+
+1. **TCP server pattern**: Added `parseIp4` + `listen` + `accept` + `stream.read/writeAll` to SKILL.md API corrections.
+2. **Socket timeout**: Added `SO_RCVTIMEO` + `setsockopt` + `posix.timeval` pattern.
+3. **Dir.close() mutability**: Added note that `Dir.close()` requires `*Dir` (var, not const).
+4. **EpochSeconds date/time**: Added full date computation chain with day-of-week gotcha.
+
+### Snippet curation
+
+Created `src/exercises/networking_http.zig` with 6 tested patterns:
+- TCP server accept lifecycle
+- Socket timeout setup
+- URL percent-decoding
+- Path traversal detection
+- HTTP date formatting
+- IP address extraction from net.Address
+
+All 6 tests pass.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~90,000 (input + output)
+- Number of tool calls: ~40
+- Tokens per exercise: ~7,500

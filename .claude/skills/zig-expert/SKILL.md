@@ -140,6 +140,30 @@ const line = buf_reader.reader().readUntilDelimiterOrEof(&line_buf, '\n');
 // Little-endian binary I/O: std.mem.toBytes / readInt
 try f.writeAll(&std.mem.toBytes(@as(u32, value)));   // write LE
 const v = std.mem.readInt(u32, buf[0..4], .little);  // read LE
+
+// TCP server: parseIp4 + listen + accept
+const addr = std.net.Address.parseIp4("127.0.0.1", port) catch unreachable;
+var server = try addr.listen(.{ .reuse_address = true });
+defer server.deinit();
+const conn = try server.accept();  // returns Connection with .stream + .address
+defer conn.stream.close();
+const n = try conn.stream.read(&buf);
+try conn.stream.writeAll(response);
+
+// Socket timeout: SO_RCVTIMEO via setsockopt
+const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
+std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
+    std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
+
+// Dir.close() requires *Dir (mutable) — use `var dir = openDir(...)` not `const`
+
+// EpochSeconds date/time (no calculateDayOfWeek — compute manually)
+const es = std.time.epoch.EpochSeconds{ .secs = @intCast(std.time.timestamp()) };
+const ed = es.getEpochDay();           // .day field
+const yd = ed.calculateYearDay();      // .year field
+const md = yd.calculateMonthDay();     // .month (enum), .day_index (0-based)
+const ds = es.getDaySeconds();         // .getHoursIntoDay/Minutes/Seconds
+// Day of week: epoch day 0 = Thu → @mod(ed.day + 4, 7) gives 0=Sun..6=Sat
 ```
 
 ### Build System
