@@ -60,7 +60,7 @@ Debug and ReleaseSafe keep all safety checks (bounds, overflow, null deref → p
 
 **Bridges:** Unlike Rust (always safe unless `unsafe`), C (never safe), Go (always safe via GC + bounds). Closest analogue: C `-fsanitize=address` as the default mode, not opt-in.
 
-**Consequence:** Use `undefined` for uninitialized memory (fills with 0xAA in debug — detects reads). Use `+` for checked arithmetic (panics on overflow), `+%` for intentional wrapping, `+|` for saturating.
+**Consequence:** Use `undefined` for uninitialized memory (fills with 0xAA in debug — detects reads). Use `+` for checked arithmetic (panics on overflow), `+%` for intentional wrapping, `+|` for saturating. **Bit-width trap:** `u3` counter `+= 1` at value 7 panics — use `u4` and check `== 8` explicitly when you need a counter that reaches a power-of-two boundary.
 
 ## 0.15.2 API Corrections
 
@@ -110,6 +110,26 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 // No self-referential slices in value structs — use method to reconstruct
 // mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8
 // Function params shadow same-named methods — rename to avoid compile error
+
+// PriorityQueue: .init(gpa, context) — stored allocator, like HashMap
+var pq = std.PriorityQueue(T, void, compareFn).init(gpa, {});
+defer pq.deinit();
+try pq.add(item);        // add item
+_ = pq.remove();         // extract min
+_ = pq.peek();           // peek min (?T)
+
+// File create/write: cwd().createFile + writeAll
+const f = try std.fs.cwd().createFile("out.bin", .{});
+defer f.close();
+try f.writeAll(&bytes);
+
+// readFileAlloc: reads entire file into memory
+const data = try std.fs.cwd().readFileAlloc(gpa, "path", std.math.maxInt(usize));
+defer gpa.free(data);
+
+// Little-endian binary I/O: std.mem.toBytes / readInt
+try f.writeAll(&std.mem.toBytes(@as(u32, value)));   // write LE
+const v = std.mem.readInt(u32, buf[0..4], .little);  // read LE
 ```
 
 ### Build System

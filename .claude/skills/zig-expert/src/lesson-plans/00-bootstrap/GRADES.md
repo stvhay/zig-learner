@@ -709,3 +709,125 @@ All 6 tests pass.
 - Estimated total tokens consumed: ~65,000 (input + output)
 - Number of tool calls: ~35
 - Tokens per exercise: ~5,400
+
+---
+
+# Lesson 03 (Applied): Huffman Compression -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Read file and count byte frequencies | 5 | 0 | 5 | A |
+| 2 | Priority queue for tree building | 5 | 0 | 5 | A |
+| 3 | Build the Huffman tree | 5 | 0 | 5 | A |
+| 4 | Generate prefix codes from tree | 5 | 0 | 5 | A |
+| 5 | Bit writer -- pack bits into bytes | 5 | -1 (runtime panic) | 4 | B |
+| 6 | Encode file to compressed format | 5 | 0 | 5 | A |
+| 7 | Read header and rebuild tree | 5 | 0 | 5 | A |
+| 8 | Bit reader -- unpack bytes to bits | 5 | 0 | 5 | A |
+| 9 | Decode compressed data | 5 | 0 | 5 | A |
+| 10 | Round-trip verification | 5 | 0 | 5 | A |
+| 11 | Handle edge cases | 5 | 0 | 5 | A |
+| 12 | Performance and final integration | 5 | -1 (compile fail) | 4 | B |
+| **TOTAL** | | **60** | **-2** | **58** | **A** |
+
+**Overall: 58/60 = 96.7% = A**
+
+**Compile/runtime failures: 2 (new mistakes, -1 pt each)**
+
+## Detailed Notes
+
+### Compile Failure #1 (pre-Q5 build, -1 pt, new mistake)
+
+**Error:** Unreachable code after return in `BitWriter.init()`. Had `_ = allocator;` after the `return` statement -- dead code is a compile error in Zig.
+
+**Root cause:** Initially wrote the `init` function taking an `allocator` parameter (matching HashMap pattern), then realized BitWriter doesn't need a stored allocator. Moved the return before removing the `_ = allocator` discard. Zig correctly rejects dead code.
+
+**Fix:** Removed the unused parameter entirely.
+
+### Runtime Failure #1 (Q5 first encode attempt, -1 pt, new mistake)
+
+**Error:** Integer overflow in `u3` bit_count field at value 7. Adding 1 to a `u3` at its max value panics in safe mode. The logic checked `if (self.bit_count == 0)` after increment, relying on wrapping -- but safe mode Zig does not wrap on overflow.
+
+**Root cause:** Used `u3` for a counter that needs to represent 0..8 states (0..7 bits buffered, plus the "full byte" state at 8). A `u3` can only hold 0..7. The overflow from 7+1 panics rather than wrapping.
+
+**Fix:** Changed `bit_count` to `u4` (0..15), check `== 8` explicitly instead of relying on wrapping to 0.
+
+### All Exercises: Functionally Correct
+
+After fixing the two errors, all 12 exercises produced correct results:
+
+- Q1: Frequencies match for both test files (simple_test: a=3, b=2, c=1; les_miserables: byte 88=333, byte 116=223000, 123 unique)
+- Q2-Q3: Tree building correct (root freq = 6 for simple, 3,369,045 for les_miserables)
+- Q4: Code lengths match all reference values (space=3, e=3, t=4, a=4, newline=6, X=13)
+- Q5: Bit writer produces correct bytes (0x1E from 00011110, 0xC0 with 5 padding)
+- Q6: Compressed payload = 1,969,961 bytes (matches expected exactly)
+- Q7-Q9: Round-trip decode matches original for both files
+- Q10: Verify reports correct sizes (3,369,045 -> 1,970,586, ratio 58.5%)
+- Q11: All 4 edge cases pass (empty, single byte, repeated byte, all 256 values)
+- Q12: Performance 0.388s (limit: 5s), error handling correct
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Build 1 | 1 | unreachable code after return | Dead code: `_ = allocator` after return statement | No |
+| Q5 | 1 (runtime) | integer overflow u3 at 7+1 | u3 counter wraps panic; need u4 and check == 8 | No |
+
+Total failures: 2
+- New mistakes: 2 (cost: -1 pt each)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused failures
+
+1. **Dead code after return**: Zig enforces no dead code. When refactoring a function signature (removing a parameter), must also remove any references to the parameter, not just the signature.
+
+2. **Integer type too narrow for counter boundary**: Using `u3` (0..7) for a bit counter that needs to detect "8 bits accumulated" fails because `7 + 1` overflows. The fix is to use a wider integer (`u4`) and check the boundary value explicitly. This is a general Zig safety feature -- checked arithmetic prevents subtle wrapping bugs but requires matching integer widths to their actual value ranges.
+
+### Patterns that led to clean passes
+
+1. **PriorityQueue API**: `std.PriorityQueue(T, Context, compareFn).init(gpa, context)` -- stored allocator pattern like HashMap. compareFn returns `std.math.Order`. Used pointer elements (`*Node`) with heap allocation for stable pointers.
+
+2. **File I/O**: `std.fs.cwd().readFileAlloc(gpa, path, max)` for whole-file reads, `std.fs.cwd().createFile(path, .{})` for output. `file.writeAll(&bytes)` for bulk writes.
+
+3. **Binary encoding/decoding**: `std.mem.toBytes(@as(u32, val))` for native-endian writes, `std.mem.readInt(u32, buf[0..4], .little)` for little-endian reads.
+
+4. **Recursive tree traversal**: Zig handles recursive functions naturally. Used `*Node` pointers with explicit heap allocation via `allocator.create(Node)`.
+
+5. **Buffered output writes**: Using a 4096-byte write buffer in the decoder, flushing when full, avoids per-byte I/O overhead.
+
+6. **Edge case handling**: Empty file (0 entries in header), single-byte file (tree with one leaf, left-only parent), all 256 bytes -- all handled by the tree-building logic with special cases for 0 and 1 entries.
+
+7. **@splat for array initialization**: `var freqs: [256]u64 = @splat(0);` -- clean zero-initialization of large arrays.
+
+8. **std.fs.File.stdout()/.stderr()**: Used the correct 0.15.2 API throughout, no regression to getStdOut.
+
+9. **CLI argument parsing**: `std.process.argsWithAllocator(gpa)` with `.next()` for sequential extraction.
+
+10. **Error handling in CLI**: `catch |err| { ... std.process.exit(1); }` pattern for user-facing error messages.
+
+### Skill knowledge base updates made
+
+1. **Bit-width trap note**: Added to SKILL.md safety section: `u3` counter `+= 1` at value 7 panics -- use `u4` and check `== 8` explicitly.
+2. **PriorityQueue API**: Added complete API example to 0.15.2 corrections.
+3. **File create/write patterns**: Added `createFile`, `writeAll`, `readFileAlloc` examples.
+4. **Binary I/O patterns**: Added `std.mem.toBytes` / `readInt` for little-endian encoding.
+
+### Snippet curation
+
+Created `src/exercises/bit_io_priority_queue.zig` with curated patterns:
+- PriorityQueue with pointer elements and multi-field comparison
+- Bit-level writer (MSB-first) with u4 counter gotcha
+- Bit-level reader (MSB-first)
+- Binary I/O with std.mem.toBytes / readInt
+
+All 5 tests pass.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~80,000 (input + output)
+- Number of tool calls: ~30
+- Tokens per exercise: ~6,667
