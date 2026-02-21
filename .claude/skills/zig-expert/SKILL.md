@@ -123,9 +123,19 @@ const f = try std.fs.cwd().createFile("out.bin", .{});
 defer f.close();
 try f.writeAll(&bytes);
 
-// readFileAlloc: reads entire file into memory
+// readFileAlloc: reads entire file into memory (from path)
 const data = try std.fs.cwd().readFileAlloc(gpa, "path", std.math.maxInt(usize));
 defer gpa.free(data);
+
+// readToEndAlloc: reads from already-opened File handle
+const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
+defer gpa.free(data2);
+
+// Buffered line reading: bufferedReaderSize + readUntilDelimiterOrEof
+var buf_reader = std.io.bufferedReaderSize(8192, file);
+var line_buf: [4096]u8 = undefined;
+const line = buf_reader.reader().readUntilDelimiterOrEof(&line_buf, '\n');
+// Returns ?[]u8 — null on EOF. Line does NOT include delimiter.
 
 // Little-endian binary I/O: std.mem.toBytes / readInt
 try f.writeAll(&std.mem.toBytes(@as(u32, value)));   // write LE

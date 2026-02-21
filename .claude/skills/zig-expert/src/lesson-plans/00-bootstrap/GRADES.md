@@ -831,3 +831,126 @@ All 5 tests pass.
 - Estimated total tokens consumed: ~80,000 (input + output)
 - Number of tool calls: ~30
 - Tokens per exercise: ~6,667
+
+---
+
+# Lesson 04 (Applied): Stream Editor -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Line-by-line reader and printer | 5 | 0 | 5 | A |
+| 2 | Basic substitution (s/pattern/replacement/) | 5 | 0 | 5 | A |
+| 3 | Line number addressing and p command | 5 | 0 | 5 | A |
+| 4 | Regex pattern matching in addresses | 5 | 0 | 5 | A |
+| 5 | Regex in substitution (& and \1-\9) | 5 | 0 | 5 | A |
+| 6 | Delete (d) and quit (q) commands | 5 | 0 | 5 | A |
+| 7 | G, =, and y commands | 5 | 0 | 5 | A |
+| 8 | a, i, and c text insertion commands | 5 | 0 | 5 | A |
+| 9 | Multiple commands (-e and -f) | 5 | 0 | 5 | A |
+| 10 | Regex range addresses | 5 | 0 | 5 | A |
+| 11 | In-place editing (-i) | 5 | 0 | 5 | A |
+| 12 | Substitution flags (p, N) and integration | 5 | 0 | 5 | A |
+| **TOTAL** | | **60** | **-2** | **58** | **A** |
+
+**Overall: 58/60 = 96.7% = A**
+
+**Compile failures: 2 (new mistakes, -1 pt each)**
+
+## Detailed Notes
+
+### Compile Failure #1 (-1 pt, new mistake)
+
+**Error:** Initial build had multiple issues: `var` declared for a local never mutated (should be `const`), unused function parameter `elem_end`, pointless discard of `group_idx`, and type mismatch `?[]u8` vs `[]const u8` in assignment.
+
+**Root cause:** First draft had several structural issues from trying to write a complex program in one pass. The regex engine's `matchQuantifier` function had an unused `elem_end` parameter, and the substitution result type handling was incorrect.
+
+**Fix:** Rewrote program with cleaner structure, removing unused parameters and fixing type handling.
+
+### Compile Failure #2 (-1 pt, new mistake)
+
+**Error:** `var parsed_cmds` flagged as "local variable is never mutated" -- needs `const`.
+
+**Root cause:** The `parseCommands` returns a `[]SedCommand` slice. The slice pointer itself is never reassigned (the `in_range` field mutations happen through the slice contents, not the slice variable). Zig correctly identifies this as needing `const`.
+
+**Fix:** Changed `var` to `const`.
+
+### Regex Engine Rewrite (no additional compile failure)
+
+After the initial build compiled, the Q5-2 test (log level extraction with `\1` back-reference) failed. The regex group tracking was incorrect -- the iterative `matchAt` function with its `\(` and `\)` tracking used a fragile "unclosed group" heuristic that broke when `matchQuant` sliced the pattern and called `matchAt` recursively with shifted positions.
+
+**Fix:** Rewrote the regex engine to be fully recursive (`matchRec`), passing group state through the call stack with a proper open-group stack (`open_stack` + `open_depth`). This naturally handles nested groups, quantifiers over groups, and back-references. No additional compile failures from this rewrite.
+
+### All Exercises: Functionally Correct
+
+After fixing the compile errors and rewriting the regex engine, all 12 exercises produced output identical to system `sed`:
+
+- Q1: File reading and stdin both match `cat` output
+- Q2: All substitution variants (first, global, custom delimiter, empty replacement) match
+- Q3: Line addressing (single, range, $, p with/without -n) all match
+- Q4: Regex addresses (/pattern/p, /^.../p, /..$/p, /^$/d) all match
+- Q5: Regex substitution with &, \1-\9, character classes, quantifiers all match
+- Q6: Delete and quit commands match (3,5d, /ERROR/d, 3q, /fear/q)
+- Q7: G (double-space), = (line numbers), y (ROT13) all match
+- Q8: a\, i\, c\ text commands all match
+- Q9: Multiple -e flags, -f script file, mixed -e/-f all match
+- Q10: Regex ranges (/INFO/,/ERROR/p, 3,/success/d, /WARN/,/WARN/p) all match
+- Q11: In-place editing produces identical results to `sed -i`
+- Q12: s///p with -n, s///2 (Nth occurrence), complex multi-command pipeline all match
+
+Final integration test: all 8 `sed` comparison tests pass.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Build 1 | 1 | Multiple: unused var, unused param, type mismatch | First-draft structural issues | No |
+| Build 2 | 1 | "local variable is never mutated" | `var` for non-mutated slice variable | No |
+
+Total compile failures: 2
+- New mistakes: 2 (cost: -1 pt each)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Unused parameters in helper functions**: When a function parameter is only needed for context (like `elem_end` passed to `matchQuantifier` for documentation purposes but never read), Zig rejects it. Either use the parameter or name it `_`.
+
+2. **const vs var for slice variables**: A `[]SedCommand` whose elements are mutated via pointer access is still `const` as a variable because the variable (pointer+length) never changes. Only the pointed-to data changes. This is the same as C's `T *const` -- constant pointer to mutable data.
+
+### Patterns that led to clean passes
+
+1. **std.fs.File.stdout()/stdin()/stderr()**: Used the correct 0.15.2 API throughout, no regression to `getStdOut/getStdIn/getStdErr`.
+2. **readToEndAlloc for whole-file reads**: `file.readToEndAlloc(gpa, max)` for reading from an opened File handle.
+3. **std.mem.splitScalar for line splitting**: Clean pattern for splitting file content by newlines.
+4. **std.mem.indexOfScalar for transliteration**: Used to find character position in `y` command source.
+5. **std.fmt.allocPrint for string building**: Used for G command (appending newline) and temp filename construction.
+6. **ArrayList.toOwnedSlice for command arrays**: Clean pattern for building and returning dynamic arrays.
+7. **Recursive regex engine**: Passing group state through recursion (stack-based open group tracking) handles nested groups and quantifiers cleanly.
+8. **CLI arg parsing with manual loop**: Simple and effective for `-n`, `-e`, `-f`, `-i` flags plus positional arguments.
+9. **File rename for atomic in-place editing**: Write to temp file, then rename to original -- prevents data loss on failure.
+
+### Code quality assessment
+
+The implementation is a single-file ~700 line program with clear separation:
+- CLI argument parsing
+- Sed command parsing (addresses, command types, flags)
+- Regex engine (recursive matcher with group capture)
+- Line processing (command dispatch with address matching)
+- Output formatting
+- In-place editing
+
+Quality is good for an applied exercise. The regex engine uses a clean recursive design that handles all BRE features (., *, +, ?, ^, $, [], \(\), \1-\9, character classes). No significant code quality deductions.
+
+### Skill knowledge base updates made
+
+1. **readToEndAlloc**: Added `file.readToEndAlloc(gpa, max)` for reading from open File handles (distinct from `cwd().readFileAlloc` which takes a path).
+2. **Buffered line reading**: Added `std.io.bufferedReaderSize` + `readUntilDelimiterOrEof` pattern for stream processing.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~120,000 (input + output)
+- Number of tool calls: ~45
+- Tokens per exercise: ~10,000
