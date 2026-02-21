@@ -93,6 +93,8 @@ The first time a lesson or lesson plan is executed, token usage is recorded to e
 - Number of tool calls
 - Tokens per exercise (total / exercise count)
 
+The orchestrating agent will append `Actual (Task tool)` to each Token Usage section after the lesson completes, using the `total_tokens` and `tool_uses` reported by the Task tool. The agent's self-estimates serve as a point of comparison but are not ground truth.
+
 On subsequent runs, compare against the baseline.
 
 ### Commit Strategy

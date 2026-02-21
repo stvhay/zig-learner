@@ -339,6 +339,7 @@ Total compile failures: 5
 - Estimated total tokens consumed: ~85,000 (input + output)
 - Number of tool calls: ~65
 - Tokens per exercise: ~3,400
+- Actual (Task tool): 117,203 tokens, 81 tool calls
 
 ---
 
@@ -437,6 +438,7 @@ Total compile failures: 2
 - Estimated total tokens consumed: ~75,000 (input + output)
 - Number of tool calls: ~55
 - Tokens per exercise: ~3,000
+- Actual (Task tool): 132,241 tokens, 78 tool calls
 
 ---
 
@@ -709,6 +711,7 @@ All 6 tests pass.
 - Estimated total tokens consumed: ~65,000 (input + output)
 - Number of tool calls: ~35
 - Tokens per exercise: ~5,400
+- Actual (Task tool): 115,128 tokens, 54 tool calls
 
 ---
 
@@ -831,6 +834,7 @@ All 5 tests pass.
 - Estimated total tokens consumed: ~80,000 (input + output)
 - Number of tool calls: ~30
 - Tokens per exercise: ~6,667
+- Actual (Task tool): 119,036 tokens, 62 tool calls
 
 ---
 
