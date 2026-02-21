@@ -62,204 +62,189 @@ Debug and ReleaseSafe keep all safety checks (bounds, overflow, null deref → p
 
 **Consequence:** Use `undefined` for uninitialized memory (fills with 0xAA in debug — detects reads). Use `+` for checked arithmetic (panics on overflow), `+%` for intentional wrapping, `+|` for saturating. **Bit-width trap:** `u3` counter `+= 1` at value 7 panics — use `u4` and check `== 8` explicitly when you need a counter that reaches a power-of-two boundary.
 
-## 0.15.2 API Corrections
+## 0.15.2 API Reference
 
-These changed from 0.14. Training data overwhelmingly shows the OLD way. Full pitfall list: **pitfalls-reference.md**.
+Training data shows 0.14 patterns. These are the 0.15.2 equivalents. Full pitfall list: **pitfalls-reference.md**.
 
-**STOP — Read this before writing ANY ArrayList code:** `ArrayList` in 0.15.2 uses `.empty` init and passes allocator to EVERY method. The old `.init(gpa)` / `.append(val)` pattern DOES NOT EXIST. This mistake has occurred in 11+ exercises across 6 lessons. If you write `.init(` for an ArrayList, you are wrong.
+### Collection Initialization
 
-**TRAP — json.Array uses `.init(allocator)` but ArrayList uses `.empty`:** When building JSON in the same file as other data structures, the `.init(allocator)` pattern from `json.Array`/`json.ObjectMap` bleeds into `ArrayList` usage. **Check every init call against the type.**
+The allocator-passing pattern varies by type. Check init against the type every time.
+
+| Type | Init | Deinit | Method pattern |
+|------|------|--------|---------------|
+| `ArrayList(T)` | `.empty` | `.deinit(gpa)` | `.append(gpa, val)` — allocator per-method |
+| `AutoHashMap`/`StringHashMap` | `.init(gpa)` | `.deinit()` | `.put(k, v)` — stored allocator |
+| `json.ObjectMap` | `.init(gpa)` | `.deinit()` | `.put(k, v)` — stored allocator |
+| `json.Array` | `.init(gpa)` | `.deinit()` | `.append(v)` — stored allocator |
+| `PriorityQueue(T, ctx, cmp)` | `.init(gpa, ctx)` | `.deinit()` | `.add(item)` — stored allocator |
+| `GPA(.{})` | `.init` (value literal) | `.deinit()` | N/A |
 
 ```zig
-// ⚠️ ArrayList: .empty + per-method allocator — NEVER .init(gpa), NEVER .append(val)
-// This is the #1 recurring mistake (hit in 11+ exercises). The old Managed API is GONE.
-var list: std.ArrayList(i32) = .empty;   // NOT .init(gpa)
-defer list.deinit(gpa);                  // NOT .deinit()
-try list.append(gpa, 42);               // NOT .append(42)
+// ArrayList — per-method allocator
+var list: std.ArrayList(i32) = .empty;
+defer list.deinit(gpa);
+try list.append(gpa, 42);
 
-// HashMap: .init(gpa) — stored allocator (inconsistent with ArrayList!)
-var map = std.AutoHashMap(K, V).init(gpa);
-
-// ⚠️ JSON types use STORED allocator (.init) — opposite of ArrayList!
-// json.ObjectMap = StringArrayHashMap(Value) — stored allocator
-// json.Array = array_list.Managed(Value) — stored allocator (NOT std.ArrayList!)
-var obj = std.json.ObjectMap.init(gpa);  // .init(allocator) — correct
+// JSON types — stored allocator (different from ArrayList!)
+var obj = std.json.ObjectMap.init(gpa);
 defer obj.deinit();
 try obj.put("key", .{ .string = "value" });
-var arr = std.json.Array.init(gpa);      // .init(allocator) — correct
-defer arr.deinit();                      // no arg — allocator is stored
-try arr.append(.{ .string = "item" });
-// For nested JSON objects: use ArenaAllocator — ObjectMap.deinit() does NOT
-// recursively free nested objects. Arena frees everything at once.
+// ObjectMap.deinit() does NOT recursively free nested objects — use ArenaAllocator.
+```
 
-// GPA: value literal (NOT .init{})
-var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
-defer _ = gpa.deinit();
+### Memory Ownership
 
+Five rules that prevent the most common runtime errors:
+
+1. **One owner per resource.** If `errdefer allocator.free(x)` is active, never also manually free `x` before returning an error — errdefer fires on the error return, causing double-free.
+2. **Defer-free intermediates.** When function A allocates a result and passes it to function B which also allocates, A's result leaks unless freed: `defer allocator.free(a_result)` before calling B.
+3. **JSON arena lifetime.** Strings from `parseFromSlice` point into the parsed arena. After `parsed.deinit()`, those strings are dangling. Use `.allocate = .alloc_always` or dupe with the caller's allocator.
+4. **No self-referential slices in value structs.** A struct can't hold a slice into its own buffer — the slice dangles when the struct is returned by value. Use `len: usize` + a method that reconstructs the slice.
+5. **Nested slice constness.** `[][]u8` does not coerce to `[][]const u8`. The inner pointer's mutability is part of the type. Allocate `[]const u8` items directly.
+
+### I/O
+
+```zig
 // stdout/stderr/stdin (NOT std.io.getStdOut/getStdErr/getStdIn!)
 var buf: [1024]u8 = undefined;
 var w = std.fs.File.stdout().writer(&buf);
-const stdout = &w.interface;  // flush() HERE, not on w
-const stdin_file = std.fs.File.stdin();  // for raw reads: stdin_file.read(&buf)
+const stdout = &w.interface;  // flush() on interface, not w
 
-// JSON serialize (no stringify/stringifyAlloc)
-const s = try std.fmt.allocPrint(gpa, "{f}", .{std.json.fmt(value, .{})});
+// Line reading: deprecatedReader (bufferedReaderSize does NOT exist in 0.15.2)
+const stdin_file = std.fs.File.stdin();
+const reader = stdin_file.deprecatedReader();
+var line_buf: [4096]u8 = undefined;
+const line = reader.readUntilDelimiterOrEof(&line_buf, '\n');
+// Returns ?[]u8 — null on EOF. Buffer aliasing: dupe before next read.
 
-// ⚠️ JSON parse: use .alloc_always when input buffer will be freed
-// Default .alloc_if_needed makes []const u8 fields point INTO input buffer.
-// If you free the input, parsed strings become dangling pointers (0xAA in debug).
-const parsed = try std.json.parseFromSlice(T, gpa, input, .{ .allocate = .alloc_always });
-defer parsed.deinit();  // frees arena (all parsed strings + arrays)
-// Safe: parsed.value.string_field is independently allocated
-
-// Writer params: anytype (AnyWriter ≠ Writer from .interface)
+// Writer params: use anytype (AnyWriter ≠ Writer from .interface)
 fn process(stdout: anytype, stderr: anytype) !void { ... }
 
 // !?T: try THEN orelse
 const line = (try readLine(stdin, &buf)) orelse break;
+```
 
-// CLI args: argsWithAllocator (NOT argsAlloc + free)
+### JSON
+
+```zig
+// Serialize (no stringify/stringifyAlloc)
+const s = try std.fmt.allocPrint(gpa, "{f}", .{std.json.fmt(value, .{})});
+
+// Parse — use .alloc_always when input will be freed
+const parsed = try std.json.parseFromSlice(T, gpa, input, .{ .allocate = .alloc_always });
+defer parsed.deinit();
+```
+
+### Filesystem
+
+```zig
+const f = try std.fs.cwd().createFile("out.bin", .{});
+defer f.close();
+try f.writeAll(&bytes);
+
+// Read entire file by path / by handle
+const data = try std.fs.cwd().readFileAlloc(gpa, "path", std.math.maxInt(usize));
+const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
+
+// Dir.close() requires *Dir (mutable) — use var, not const
+
+// Little-endian binary I/O
+try f.writeAll(&std.mem.toBytes(@as(u32, value)));
+const v = std.mem.readInt(u32, buf[0..4], .little);
+```
+
+### Networking
+
+```zig
+// TCP server
+const addr = std.net.Address.parseIp4("127.0.0.1", port) catch unreachable;
+var server = try addr.listen(.{ .reuse_address = true });
+defer server.deinit();
+const conn = try server.accept();
+defer conn.stream.close();
+
+// TCP client
+const stream = try std.net.tcpConnectToAddress(addr);
+defer stream.close();
+
+// Socket timeout (SO_RCVTIMEO does NOT unblock accept() on macOS)
+const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
+std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
+    std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
+
+// Signal handling
+const sa = std.posix.Sigaction{
+    .handler = .{ .handler = myHandler },  // fn(c_int) callconv(.c) void
+    .mask = std.posix.sigemptyset(),
+    .flags = 0,
+};
+std.posix.sigaction(std.posix.SIG.INT, &sa, null);
+```
+
+### Crypto
+
+```zig
+// AES-256-GCM: key [32]u8, nonce [12]u8, tag [16]u8
+const Aes256Gcm = std.crypto.aead.aes_gcm.Aes256Gcm;
+Aes256Gcm.encrypt(ciphertext, &tag, plaintext, &.{}, nonce, key);
+Aes256Gcm.decrypt(plaintext, ciphertext, tag, &.{}, nonce, key) catch return error.AuthFailed;
+
+// Argon2id key derivation — allocator is FIRST param
+try std.crypto.pwhash.argon2.kdf(gpa, &derived_key, password, &salt,
+    .{ .t = 3, .m = 65536, .p = 1 }, .argon2id);
+
+// Secure random
+std.crypto.random.bytes(&buf);
+const n = std.crypto.random.uintLessThan(u8, max);
+```
+
+### Other Patterns
+
+```zig
+// CLI args (NOT argsAlloc)
 var args = std.process.argsWithAllocator(gpa) catch ...;
 defer args.deinit();
 
 // Bit shifts: cast to target width BEFORE shifting
 const byte: u8 = (@as(u8, nibble) << 4) | low;
 
-// Custom format: 2 params only, use {f} specifier
+// Custom format: 2 params, {f} specifier
 pub fn format(self: Self, writer: anytype) !void { ... }
 
-// catch |_| → bare catch; sort → std.sort.pdq()
-// @fieldParentPtr("field_name", ptr) — string first
-// StringHashMap.deinit() does NOT free keys — free via keyIterator() first
-// No self-referential slices in value structs — use len + method to reconstruct:
-//   params_buf: [15][]const u8, params_len: usize, fn params() []const []const u8
-// Case-insensitive string comparison: std.ascii.eqlIgnoreCase(a, b) → bool
-// mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8
-// Function params shadow same-named methods — rename to avoid compile error
-// `_ = x;` is compile error if x was mutated — restructure to avoid the variable
-// catch block value: `const x = expr catch blk: { ...; break :blk fallback; };`
-// Error set exhaustiveness: concrete reader types have known error sets — `else` is
-//   unreachable if all variants are covered. Use bare `catch` when mapping all to one value.
-//   Example: FixedBufferStream reader only has StreamTooLong — `else => err` is compile error.
-// StringHashMap key/value ownership: if key_ptr.* and value.name alias the same alloc, free once only
-// ⚠️ errdefer + manual free = double-free: if `errdefer allocator.free(buf)` is active,
-//   do NOT also `allocator.free(buf)` before returning an error — errdefer fires on return.
-//   Choose one owner: errdefer for cleanup-on-error, or manual free + no errdefer.
-// ⚠️ Intermediate allocation leak: when chaining allocPrint → formatResponse (both allocate),
-//   the first result leaks unless freed: `defer allocator.free(intermediate);`
-//   before calling the wrapper that produces the final allocation.
-// ⚠️ Nested slice constness: [][]u8 does NOT coerce to [][]const u8 — the inner pointer's
-//   mutability is part of the type. Allocate []const u8 items directly if the target is [][]const u8.
-
-// C zlib (std.compress.flate.Compress has @panic("TODO") — pitfall #38)
+// C zlib (std.compress.flate.Compress has @panic("TODO"))
 const c = @cImport(@cInclude("zlib.h"));
-// Compress:  c.compress(&out_buf, &out_len, src.ptr, src.len)
-// Decompress: c.uncompress(&out_buf, &out_len, src.ptr, src.len)
 // Build: zig build-exe file.zig -lz -lc
 
-// macOS POSIX stat field types (std.posix.fstat):
-// ino=u64, dev=i32, size=i64, mode=u16, uid/gid=u32
-// mtimespec/ctimespec (NOT mtime/ctime): .sec (isize) + .nsec (isize)
+// macOS POSIX stat: mtimespec/ctimespec (NOT mtime/ctime), .sec (isize) + .nsec (isize)
 // Cast: @truncate for u64→u32, @bitCast for i32→u32, @intCast for same-sign
-// Freeing sub-slices panics: alloc(N) then free(buf[0..M]) = "Invalid free"
-//   → realloc to actual size, or wrap in struct with .raw + .deinit()
 
-// PriorityQueue: .init(gpa, context) — stored allocator, like HashMap
-var pq = std.PriorityQueue(T, void, compareFn).init(gpa, {});
-defer pq.deinit();
-try pq.add(item);        // add item
-_ = pq.remove();         // extract min
-_ = pq.peek();           // peek min (?T)
-
-// File create/write: cwd().createFile + writeAll
-const f = try std.fs.cwd().createFile("out.bin", .{});
-defer f.close();
-try f.writeAll(&bytes);
-
-// readFileAlloc: reads entire file into memory (from path)
-const data = try std.fs.cwd().readFileAlloc(gpa, "path", std.math.maxInt(usize));
-defer gpa.free(data);
-
-// readToEndAlloc: reads from already-opened File handle
-const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
-defer gpa.free(data2);
-
-// Line reading from stdin: deprecatedReader + readUntilDelimiterOrEof
-// ⚠️ std.io.bufferedReaderSize does NOT exist in 0.15.2
-const stdin_file = std.fs.File.stdin();
-const reader = stdin_file.deprecatedReader();  // GenericReader with readUntilDelimiterOrEof
-var line_buf: [4096]u8 = undefined;
-const line = reader.readUntilDelimiterOrEof(&line_buf, '\n');
-// Returns ?[]u8 — null on EOF. Line does NOT include delimiter.
-// ⚠️ Buffer aliasing: if reading multiple inputs into same line_buf,
-// earlier slices become invalid. Use allocator.dupe() before next read.
-
-// Little-endian binary I/O: std.mem.toBytes / readInt
-try f.writeAll(&std.mem.toBytes(@as(u32, value)));   // write LE
-const v = std.mem.readInt(u32, buf[0..4], .little);  // read LE
-
-// TCP server: parseIp4 + listen + accept
-const addr = std.net.Address.parseIp4("127.0.0.1", port) catch unreachable;
-var server = try addr.listen(.{ .reuse_address = true });
-defer server.deinit();
-const conn = try server.accept();  // returns Connection with .stream + .address
-defer conn.stream.close();
-const n = try conn.stream.read(&buf);
-try conn.stream.writeAll(response);
-
-// TCP client: connect to remote address
-const addr = std.net.Address.parseIp4("127.0.0.1", port) catch unreachable;
-const stream = try std.net.tcpConnectToAddress(addr);
-defer stream.close();
-try stream.writeAll(request_bytes);
-const n = try stream.read(&buf);  // buf[0..n] = response
-
-// Socket timeout: SO_RCVTIMEO via setsockopt
-const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
-std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
-    std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
-// GOTCHA: SO_RCVTIMEO does NOT unblock accept() on macOS — use self-connection
-
-// Signal handling (SIGINT/SIGTERM): posix.Sigaction + sigaction
-const sa = std.posix.Sigaction{
-    .handler = .{ .handler = myHandler },  // fn(c_int) callconv(.c) void
-    .mask = std.posix.sigemptyset(),
-    .flags = 0,
-};
-std.posix.sigaction(std.posix.SIG.INT, &sa, null);  // no catch on macOS
-
-// Crypto: AES-256-GCM authenticated encryption
-const Aes256Gcm = std.crypto.aead.aes_gcm.Aes256Gcm;
-Aes256Gcm.encrypt(ciphertext, &tag, plaintext, &.{}, nonce, key);
-Aes256Gcm.decrypt(plaintext, ciphertext, tag, &.{}, nonce, key) catch return error.AuthFailed;
-// key: [32]u8, nonce: [12]u8, tag: [16]u8, ad: &.{} (empty associated data)
-
-// Crypto: Argon2id key derivation — allocator is FIRST param
-try std.crypto.pwhash.argon2.kdf(gpa, &derived_key, password, &salt,
-    .{ .t = 3, .m = 65536, .p = 1 }, .argon2id);
-// derived_key: *[32]u8, password: []const u8, salt: *const [16]u8
-
-// Crypto: secure random bytes
-std.crypto.random.bytes(&buf);                        // fill buffer
-const n = std.crypto.random.uintLessThan(u8, max);    // unbiased [0, max)
-
-// Performance timing: nanoTimestamp (i128)
-const t0 = std.time.nanoTimestamp();
-// ... work ...
-const elapsed_ns: u64 = @intCast(std.time.nanoTimestamp() - t0);
-
-// Dir.close() requires *Dir (mutable) — use `var dir = openDir(...)` not `const`
-
-// EpochSeconds date/time (no calculateDayOfWeek — compute manually)
+// EpochSeconds date/time
 const es = std.time.epoch.EpochSeconds{ .secs = @intCast(std.time.timestamp()) };
-const ed = es.getEpochDay();           // .day field
-const yd = ed.calculateYearDay();      // .year field
-const md = yd.calculateMonthDay();     // .month (enum), .day_index (0-based)
-const ds = es.getDaySeconds();         // .getHoursIntoDay/Minutes/Seconds
-// Day of week: epoch day 0 = Thu → @mod(ed.day + 4, 7) gives 0=Sun..6=Sat
+const ed = es.getEpochDay();
+const yd = ed.calculateYearDay();
+const md = yd.calculateMonthDay();  // .month (enum), .day_index (0-based)
+const ds = es.getDaySeconds();      // .getHoursIntoDay/Minutes/Seconds
+
+// Performance timing
+const t0 = std.time.nanoTimestamp();
+const elapsed_ns: u64 = @intCast(std.time.nanoTimestamp() - t0);
 ```
 
+### Compiler Gotchas
+
+- `catch |_|` → bare `catch`; `sort` → `std.sort.pdq()`
+- `@fieldParentPtr("field_name", ptr)` — string first
+- `StringHashMap.deinit()` does NOT free keys — free via `keyIterator()` first
+- `mem.sliceTo` requires sentinel-terminated ptr (`[*:0]u8`), NOT plain `[*]u8`
+- Function params shadow same-named methods — rename to avoid compile error
+- `_ = x;` is compile error if x was mutated — restructure to avoid the variable
+- `catch` block value: `const x = expr catch blk: { ...; break :blk fallback; };`
+- Error set exhaustiveness: concrete reader types have small known error sets — `else` prong may be unreachable. Use bare `catch` or name the specific error.
+- `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
+- Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"
+
 ### Build System
+
 - `build.zig.zon`: `.name = .identifier` (enum literal), `.fingerprint = 0xhex`
 - `.root_module` (not `.root_source_file`), `b.addModule()` (not `addStaticLibrary`)
 
@@ -346,7 +331,7 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 Rules where Zig idiom diverges from other languages:
 1. **`if (opt) |val|` not `opt.?`** — payload captures don't panic; `.?` does
 2. **`StaticStringMap` for string dispatch** — comptime hash + enum + exhaustive switch
-3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire. **LIFO is absolute**: on the error path, `defer` and `errdefer` interleave strictly by registration order (last registered = first to fire). A `defer` registered *after* an `errdefer` fires *before* the errdefer — there is no grouping by type. **Timing**: defers execute *after* the return expression is evaluated — you cannot observe their side effects through a function's return value. **Double-free trap**: if `errdefer allocator.free(x)` is registered, never also manually `allocator.free(x)` before returning an error — the errdefer fires on return, freeing twice.
+3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire. LIFO is absolute: `defer` and `errdefer` interleave strictly by registration order, no grouping by type. Defers execute after the return expression is evaluated. See Memory Ownership rule #1 for the double-free trap.
 4. **`anytype` for writer params** — concrete writer types don't compose
 5. **Create resources once** — writer in main(), pass as parameter
 6. **Honor accepted allocators** — never `_ = allocator` then hardcode
