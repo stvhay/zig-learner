@@ -89,3 +89,59 @@ The loop is functional and improving. Key observations:
 4. **Token efficiency improved dramatically** — L06 (70k, ~45 calls) was half the cost of L03 (152k) despite similar complexity. The agent learned to batch exercises and use RAG more efficiently.
 
 5. **Known-mistake avoidance is strong** — only 1 repeat penalty in 150 exercises. The skill is being read and applied.
+
+---
+
+## Applied Lessons
+
+### Hex Dump (Applied) — 58/60 (A)
+
+**Self-updating:** Expanded the `getStdOut/getStdErr/getStdIn` warning and added `stdin()` accessor pattern. Known-mistake repeat (-2pts) on `std.io.getStdErr()` despite existing SKILL.md entry.
+
+**RAG:** Used during exercises (stream editor lesson query log confirms pattern). First curated snippet file added: `file_io_cli.zig` (6 tests).
+
+**Skills invoked:** None. Predates skill invocation in subagent prompts.
+
+### Huffman Compression (Applied) — 58/60 (A)
+
+**Self-updating:** Added PriorityQueue API, `createFile`/`writeAll`/`readFileAlloc`, binary I/O patterns (`std.mem.toBytes`, `readInt`). Bit-width trap note (u3 can't hold value 8).
+
+**RAG:** Used during exercises. Created `bit_io_priority_queue.zig` (5 tests).
+
+**Skills invoked:** None. Predates skill invocation in subagent prompts.
+
+### Stream Editor (Applied) — 58/60 (A)
+
+**Self-updating:** Added `readToEndAlloc` (from opened File handle, distinct from `readFileAlloc` which takes a path) and buffered line reading pattern (`bufferedReaderSize` + `readUntilDelimiterOrEof`).
+
+**RAG:** 5 queries in the log (bufferedReader, std.mem, argsWithAllocator, openFile, readAll). All to `zig-references` and `zig-src`. No new snippet file — gap.
+
+**Skills invoked:** None. Predates skill invocation in subagent prompts.
+
+### HTTP Server (Applied) — 59/60 (A)
+
+**Self-updating:** Largest applied lesson update — 24 lines of TCP server patterns, socket timeout, Dir.close() mutability, EpochSeconds date/time chain.
+
+**RAG:** 10 queries covering networking, sockets, path traversal, epoch time, CLI args. Created `networking_http.zig` (170 lines, 6 tests).
+
+**Skills invoked:** First lesson to use complementary skills:
+- `writing-skills` — before editing SKILL.md
+- `verification-before-completion` — before claiming done
+- `systematic-debugging` — not invoked (only 1 compile failure, fixed quickly)
+
+## Applied Trend
+
+| Metric | Hex Dump | Huffman | Stream Editor | HTTP Server |
+|--------|----------|---------|---------------|-------------|
+| Score | 58/60 | 58/60 | 58/60 | 59/60 |
+| SKILL.md updates | 2 entries | 4 entries | 2 entries | 5 entries (24 lines) |
+| Snippets added | file_io_cli.zig | bit_io_priority_queue.zig | none | networking_http.zig |
+| Skills invoked | none | none | none | writing-skills + verification |
+| RAG queries | ? | ? | 5 | 10 |
+| Actual tokens | 115k | 119k | ? | 129k |
+
+**Key observations:**
+1. Snippet curation now working in 3 of 4 applied lessons (stream editor missed it)
+2. Skill invocation only started working in HTTP server — the first lesson where the prompt included them
+3. RAG query quality is low (RRF scores ~0.01) — the agent makes the queries but may not get much value
+4. Self-estimates consistently undercount actual tokens by 30-40%
