@@ -122,9 +122,15 @@ When using subagents (Task tool) for lessons:
 
 ## Skill Discovery
 
-On session start, a hook runs `.claude/scripts/scan-skills.py` which scans all skills and writes `.zig-expert.json` with their names and trigger descriptions. On first load, read this file and add a one-sentence `"summary"` field to each skill entry that is relevant to Zig development work (what the skill does, not when to trigger it). Skip skills that don't apply. The file is gitignored.
+On session start, a hook runs `.claude/scripts/scan-skills.py` which scans all skills and writes `.zig-expert.json` with their names and trigger descriptions. On first load, read this file and evaluate which skills are useful for Zig work. Use the helper to annotate useful ones:
 
-When launching lesson subagents, include the relevant skill names and summaries in the prompt so the subagent knows which skills to invoke (it has the Skill tool but can't see the skill list).
+```bash
+python3 .claude/scripts/update-skill-note.py <skill-name> "<when/why to use it>"
+```
+
+Notes persist across sessions — the scan hook preserves agent-added fields. Review and update notes as you learn which skills actually help.
+
+When launching lesson subagents, include the annotated skills (those with notes) in the prompt so the subagent knows which skills to invoke and when (it has the Skill tool but can't see the skill list).
 
 ## Self-Update Protocol
 
