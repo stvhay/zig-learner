@@ -1180,3 +1180,143 @@ Total compile failures: 1
 - Number of tool calls: ~30
 - Tokens per exercise: ~9,167
 - Actual (session-cost.py): 37 API turns, $3.67 total (context replay $1.73 47%, cache writes $1.18 32%, output $0.49 13%, system replay $0.26 7%)
+
+---
+
+# Lesson 07 (Applied): Git Internals -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | SHA-1 hashing of git objects | 5 | 0 | 5 | A |
+| 2 | Write blob objects to object store | 5 | 0 | 5 | A |
+| 3 | Read and display objects (cat-file) | 5 | 0 | 5 | A |
+| 4 | Init command | 5 | 0 | 5 | A |
+| 5 | Write tree objects | 5 | 0 | 5 | A |
+| 6 | Write index file | 5 | 0 | 5 | A |
+| 7 | Read index file | 5 | 0 | 5 | A |
+| 8 | Commit command | 5 | 0 | 5 | A |
+| 9 | Status command | 5 | 0 | 5 | A |
+| 10 | Log command | 5 | 0 | 5 | A |
+| 11 | Tree objects with subdirectories | 5 | 0 | 5 | A |
+| 12 | Diff command | 5 | 0 | 5 | A |
+| **TOTAL** | | **60** | **-3** | **57** | **A** |
+
+**Overall: 57/60 = 95% = A**
+
+**Compile failures: 3 (new mistakes, -1 pt each)**
+
+## Detailed Notes
+
+### Compile Failure #1 (-1 pt, new mistake)
+
+**Errors:** Two issues in initial compile: (1) `_ = add_flag;` — pointless discard of a local variable that was set but used nowhere (Zig rejects discarding a variable that was mutated), and (2) catch block in `cmdInit` returning `void` instead of `Dir` — the catch block did `try makeDir(); target_dir = try openDir();` but didn't produce a value for the assignment expression.
+
+**Root cause:** The `add_flag` was parsed and set but then discarded instead of either being used or restructuring to avoid the variable entirely. The catch block issue was a control flow design error — catch blocks must produce the same type as the success path when assigned.
+
+**Fix:** Removed the variable and made `--add` a no-op comment. Restructured `cmdInit` to use a labeled break from the catch block: `catch blk: { try makeDir(); break :blk try openDir(); }`.
+
+### Compile Failure #2 (-1 pt, new mistake)
+
+**Error:** `@intCast(@as(i64, os_stat.ino))` — attempted to cast `u64` (inode on macOS) through `i64`, which Zig rejects because `i64` cannot represent all `u64` values.
+
+**Root cause:** Assumed all POSIX stat fields were signed integers. On macOS, `ino` is `u64`, `dev` is `i32`, `size` is `i64`, and `mode` is `u16`. Each field has a different signedness/width.
+
+**Fix:** Used `@truncate` for `u64` -> `u32` narrowing (ino), `@bitCast` for `i32` -> `u32` (dev), and `@intCast` for fields that fit within `u32` range.
+
+### Compile Failure #3 (-1 pt, new mistake)
+
+**Error:** `@truncate(os_stat.dev)` — `@truncate` requires an unsigned integer type, but `dev` is `i32`.
+
+**Root cause:** Continued misunderstanding of macOS stat field types. `dev` is `i32` (signed), so `@truncate` can't narrow it — need `@bitCast` to reinterpret the bits as `u32`.
+
+**Fix:** Changed `dev` conversion to `@bitCast(os_stat.dev)`.
+
+### All Exercises: Functionally Correct
+
+After fixing the compile errors, all 12 exercises produced correct output verified against real `git` commands:
+
+- **Q1**: `hash-object` produces `95d09f2b...` for "hello world" (no newline) and `3b18e512...` for "hello world\n" — matches `git hash-object` exactly.
+- **Q2**: `hash-object -w` writes a blob that `git cat-file -p` can read correctly.
+- **Q3**: `cat-file -t/-s/-p` outputs "blob", "12", "hello world" — all match git.
+- **Q4**: `init` creates `.git/HEAD`, `.git/objects/`, `.git/refs/heads/`, `.git/refs/tags/` with correct content.
+- **Q5**: `write-tree` writes a tree object that `git cat-file -p` reads, showing correct entry format.
+- **Q6**: `update-index --add` writes a valid v2 index file that `git status` recognizes (shows staged file).
+- **Q7**: `ls-files` and `ls-files --stage` read both our own index and real git indexes (verified on zighelloworld repo with 60+ files, modes 100644 and 100755).
+- **Q8**: `commit -m` creates a valid commit with tree, author, timestamp. `git log`, `git cat-file -p HEAD`, and `git cat-file -p HEAD^{tree}` all work.
+- **Q9**: `status` correctly shows clean state, unstaged modifications, staged modifications, and untracked files.
+- **Q10**: `log` shows commit chain with full details (hash, author, date, message) and `--oneline` mode. Both match `git log` format.
+- **Q11**: `write-tree` handles subdirectories — creates nested tree objects with mode `040000` for directories. `git cat-file -p` reads both parent and child trees.
+- **Q12**: `diff` produces unified diff format matching `git diff` output exactly (header, index line, hunk header, +/- lines).
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| All (build 1) | 1 | pointless discard + catch block type | Unused var discard pattern; catch must return same type | No |
+| All (build 2) | 2 | `i64` cannot represent `u64` | macOS stat ino is u64, not i64 | No |
+| All (build 3) | 3 | `@truncate` needs unsigned | macOS stat dev is i32, used @bitCast instead | No |
+
+Total compile failures: 3
+- New mistakes: 3 (cost: -1 pt each)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Pointless variable discard**: In Zig, `_ = var_name;` is a compile error if `var_name` was mutated. The compiler detects that the variable was assigned to but then discarded — this is "pointless". Either use the variable or restructure to avoid it.
+
+2. **macOS POSIX stat field types**: The `std.posix.Stat` struct has platform-specific field types. On macOS (Darwin): `ino` is `u64`, `dev` is `i32`, `size` is `i64`, `mode` is `u16`, `uid`/`gid` are `u32`. Each requires different casting: `@truncate` for unsigned narrowing, `@bitCast` for signed-to-unsigned same-width, `@intCast` for same-sign narrowing.
+
+3. **Catch block type consistency**: When assigning from a `catch` expression (`x = expr catch |e| { ... }`), the catch block must produce a value of the same type as the success path. For complex error handling inside catch, use labeled breaks: `catch blk: { ...; break :blk value; }`.
+
+### Patterns that led to clean passes
+
+1. **C zlib via @cImport**: Used `@cImport(@cInclude("zlib.h"))` with `-lz -lc` flags. `c.compress()` and `c.uncompress()` worked perfectly for zlib deflate/inflate. This avoided the broken `std.compress.flate.Compress` (pitfall #38).
+
+2. **SHA-1**: `std.crypto.hash.Sha1.init(.{})` / `.update()` / `.finalResult()` — clean API, no issues.
+
+3. **Big-endian I/O**: `std.mem.readInt(u32, buf[0..4], .big)` and `std.mem.writeInt(u32, &buf, value, .big)` for git index binary format.
+
+4. **`std.fmt.bytesToHex`**: Clean hex encoding for SHA-1 digests: `std.fmt.bytesToHex(digest, .lower)` returns `[40]u8`.
+
+5. **Index format padding**: 8-byte boundary alignment using `(len + 7) & ~@as(usize, 7)` pattern.
+
+6. **Recursive tree building**: `writeTreeFromEntries` recursively groups index entries by directory prefix, creating subtrees for each directory and producing correct nested tree objects.
+
+7. **LCS-based diff**: O(mn) LCS table with backtracking to produce unified diff hunks with context lines.
+
+8. **StringHashMap key cleanup**: Used `keyIterator()` to free allocated keys before `deinit()` (SKILL.md documents this pitfall).
+
+9. **EpochSeconds date formatting**: Reused the pattern from Lesson 05 (HTTP server) for formatting dates in git log.
+
+10. **`std.fs.File.stdout()`**: Used the correct 0.15.2 API throughout, no regression to `getStdOut`.
+
+### Code quality assessment
+
+The implementation is a single-file ~1300 line program with clear separation:
+- Object store helpers (hash, compress, read/write objects)
+- Index I/O (binary format read/write with checksum validation)
+- 10 CLI commands (hash-object, cat-file, init, write-tree, update-index, ls-files, commit, status, log, diff)
+
+Quality is good for an applied exercise. The code handles edge cases (empty index, no parent commit, subdirectories). Memory management uses proper defer/deinit patterns. The GitObject struct ensures callers free decompressed buffers.
+
+### Skill knowledge base updates needed
+
+1. **macOS stat field types**: Document that `std.posix.Stat` field types vary by platform. On macOS: `ino=u64`, `dev=i32`, `size=i64`, `mode=u16`. Use `@truncate`/`@bitCast`/`@intCast` as appropriate.
+
+2. **Pointless discard pattern**: `_ = var;` is an error if `var` was mutated. Restructure to avoid the variable entirely.
+
+3. **Catch block labeled break**: When a catch block needs complex logic, use `catch blk: { ...; break :blk value; }` to produce a value of the correct type.
+
+4. **C zlib pattern**: Complete pattern for `@cImport(@cInclude("zlib.h"))` with `compress()` and `uncompress()`.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~110,000 (input + output)
+- Number of tool calls: ~30
+- Tokens per exercise: ~9,167
+
+Actual (Task tool): 61 API turns, $6.79 total (system replay $0.43, context replay $3.79, cache writes $1.94, output $0.63). System context: 14,249 tokens. Compared to Lesson 06 (Load Balancer): 37 turns / $3.67 -- nearly 2x cost. The higher cost reflects the complexity of 12 exercises building a single evolving program (git internals) vs 10 exercises in L06, plus 3 compile-fix-recompile cycles.

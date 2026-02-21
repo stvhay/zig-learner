@@ -110,6 +110,21 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 // No self-referential slices in value structs — use method to reconstruct
 // mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8
 // Function params shadow same-named methods — rename to avoid compile error
+// `_ = x;` is compile error if x was mutated — restructure to avoid the variable
+// catch block value: `const x = expr catch blk: { ...; break :blk fallback; };`
+
+// C zlib (std.compress.flate.Compress has @panic("TODO") — pitfall #38)
+const c = @cImport(@cInclude("zlib.h"));
+// Compress:  c.compress(&out_buf, &out_len, src.ptr, src.len)
+// Decompress: c.uncompress(&out_buf, &out_len, src.ptr, src.len)
+// Build: zig build-exe file.zig -lz -lc
+
+// macOS POSIX stat field types (std.posix.fstat):
+// ino=u64, dev=i32, size=i64, mode=u16, uid/gid=u32
+// mtimespec/ctimespec (NOT mtime/ctime): .sec (isize) + .nsec (isize)
+// Cast: @truncate for u64→u32, @bitCast for i32→u32, @intCast for same-sign
+// Freeing sub-slices panics: alloc(N) then free(buf[0..M]) = "Invalid free"
+//   → realloc to actual size, or wrap in struct with .raw + .deinit()
 
 // PriorityQueue: .init(gpa, context) — stored allocator, like HashMap
 var pq = std.PriorityQueue(T, void, compareFn).init(gpa, {});
