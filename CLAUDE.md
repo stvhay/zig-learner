@@ -42,16 +42,20 @@ Training is organized into **lesson plans** — numbered directories containing 
 
 ### Lesson Cycle
 
-Each lesson follows this cycle:
+Lessons run in two modes. The orchestrator launches mode 1, collects cost data, then resumes the same agent in mode 2.
 
-1. **Graded attempt** — The agent takes the exercises under the grading rubric (see below).
-2. **Post-lesson reflection** — After grading, the agent must:
-   - Identify patterns that caused compile failures; check if the skill covers them; update if not
-   - Identify patterns that led to clean passes; verify the skill documents them
-   - Flag skill entries that seem wrong or stale
-3. **Skill update** — Capture new knowledge into the skill. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing — it defines structure, CSO, and quality standards.
-4. **Snippet curation** — If any exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/` (or a new file there). These are indexed by RAG and help future sessions find working code. Don't dump raw solutions — curate: one small, commented, testable snippet per pattern.
-5. **Commit** — Commit per the Commit Strategy below (one lesson commit with GRADES.md + SKILL.md + any new snippets together).
+**Mode 1 — Exercise:**
+1. Read quiz and SKILL.md (once each).
+2. Work through exercises under the grading rubric (see below).
+3. Write grade table and per-exercise scoring to GRADES.md.
+4. **Return.** Do not reflect, update SKILL.md, or commit.
+
+**Mode 2 — Self-assessment** (orchestrator resumes agent with cost data):
+1. **Post-lesson reflection** — Identify patterns that caused compile failures; check if the skill covers them. Identify clean-pass patterns; verify the skill documents them. Flag stale skill entries.
+2. **Skill update** — Capture new knowledge. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing.
+3. **Snippet curation** — If an exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/`. One small, commented, testable snippet per pattern.
+4. **Cost recording** — Write the cost data (provided by the orchestrator) into the GRADES.md Token Usage section.
+5. **Commit** — One commit per the Commit Strategy below (GRADES.md + SKILL.md + any new snippets together).
 
 ### Output Directories
 
@@ -79,23 +83,19 @@ Every 20 lessons, a comprehensive exam covers all topics from the preceding 20 l
 
 Grades are documented in `GRADES.md` within each lesson plan directory (see Lesson Plans section above).
 
-### Token Efficiency
+### Cost Efficiency
 
-The first time a lesson or lesson plan is executed, token usage is recorded to establish a baseline. After that, it becomes a performance metric.
+Every tool round-trip replays the full conversation. Cost grows **O(n²)** with turn count.
 
-**Good habits** (practice now):
-- Read the quiz section once, not per-exercise. Read SKILL.md once at the start.
-- Use RAG over full file reads — targeted `rag_search` vs. 500k+ tokens of reference files.
-- Batch difficulty-1 exercises with similar patterns without re-reading the spec for each.
+**Execution strategy:**
+- **Batch aggressively.** Write multiple solutions in one turn, test them in one turn. Never write-then-test one at a time.
+- **Front-load reads.** Read all reference material in your first turn. Context added early replays on every subsequent turn — but reading it later costs an extra turn of replay.
+- **Minimize tool results.** Pipe verbose output through `head`, `tail`, or `grep`. Large compiler errors become context you replay forever.
+- **Fail less.** A compile-fix-recompile cycle costs 3 turns of replay. Use RAG/docs before writing, not after failing.
 
-**Record in GRADES.md** — every lesson's grade record must include a "## Token Usage" section with:
-- Estimated total tokens consumed (input + output)
-- Number of tool calls
-- Tokens per exercise (total / exercise count)
+**Cost measurement:** The orchestrator runs `.claude/scripts/session-cost.py` on the mode 1 transcript and provides the results when resuming for mode 2. The agent does not estimate its own token usage. Record the orchestrator-provided cost data in the GRADES.md `## Token Usage` section.
 
-The orchestrating agent will append `Actual (Task tool)` to each Token Usage section after the lesson completes, using the `total_tokens` and `tool_uses` reported by the Task tool. The agent's self-estimates serve as a point of comparison but are not ground truth.
-
-On subsequent runs, compare against the baseline.
+The first run of each lesson establishes a cost baseline. Subsequent runs compare against it.
 
 ### Commit Strategy
 
@@ -117,20 +117,20 @@ Never mix the two streams in a single commit.
 
 When using subagents (Task tool) for lessons:
 
-1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) architecturally cannot use MCP tools. Lesson subagents must run in **foreground** to access RAG. MCP tools are allowlisted in `.claude/settings.local.json` so they don't require per-call prompting.
-2. **Skill update is mandatory** — The subagent prompt must explicitly require SKILL.md updates when mistakes are found. The agent must not just *recommend* updates in GRADES.md — it must *make* them. Include: "You MUST edit SKILL.md if you discover any gap or error."
-3. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
-4. **RAG usage** — The subagent should use `mcp__ragling__rag_search` to look up API details, pitfalls, and patterns *during* exercises, not just before. Search before coding each exercise if unsure about an API.
+1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) cannot use MCP tools. Lesson subagents must run in **foreground**. MCP tools are allowlisted in `.claude/settings.local.json`.
+2. **Two-mode protocol** — Launch the subagent in mode 1 (exercise). After it returns, run `.claude/scripts/session-cost.py --compact` on the transcript at `~/.claude/projects/<project-path>/<session-id>/subagents/agent-<agent-id>.jsonl`. Resume the same agent in mode 2 with the cost JSON. The agent ID is returned by the Task tool.
+3. **Skill update is mandatory** — The mode 2 prompt must require SKILL.md updates when mistakes are found. Include: "You MUST edit SKILL.md if you discover any gap or error."
+4. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
+5. **RAG usage** — The subagent should use `mcp__ragling__rag_search` during exercises, not just before. Search before coding each exercise if unsure about an API.
 
 ### Orchestrator Reporting
 
-After each lesson completes, the orchestrating agent must assess and report to the user on three dimensions:
+After each lesson completes (both modes), the orchestrating agent must:
 
-1. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
-2. **RAG usage** — Did the agent search RAG during exercises? What queries did it make? Check the query log at `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/` for future RAG indexing?
-3. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)? Check the task output for `"Skill"` tool calls.
-
-Also append the actual token count from the Task tool (`total_tokens`, `tool_uses`) to the lesson's Token Usage section in GRADES.md.
+1. **Run cost analysis** — Execute `.claude/scripts/session-cost.py --compact` on the mode 1 transcript. Pass the result to mode 2 via the resume prompt. Also run `--summary` and report cost breakdown to the user.
+2. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
+3. **RAG usage** — Did the agent search RAG during exercises? Check `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/`?
+4. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)?
 
 Update `SELF-IMPROVEMENT.md` in the plan directory with findings.
 
@@ -180,6 +180,7 @@ artifacts/              — exercise answers and work product (gitignored)
 
 opt/local-rag/          — ragling (git submodule, patched for Zig tree-sitter)
 patches/                — patches applied to submodules on setup
+.claude/scripts/          — orchestrator tools (session-cost.py, scan-skills.py)
 .mcp.json               — MCP server config
 .envrc                  — Nix flake + direnv hooks
 .envrc.d/               — direnv init scripts (submodule, Ollama, RAG symlinks)
