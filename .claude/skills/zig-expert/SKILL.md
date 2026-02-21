@@ -313,11 +313,19 @@ A local RAG (ragling) indexes all reference docs and Zig source code via MCP. **
 
 ```
 rag_search(query="ArrayList append 0.15", collection="zig-references")
-rag_search(query="generic stack allocator", collection="zig-src")
-rag_search(query="HashMap deinit keys")  // searches all collections
+rag_search(query="posix Stat struct fields", collection="zig-stdlib")
 ```
 
-**Prefer RAG over file reads.** Reference files total 500k+ tokens. A targeted `rag_search` returns ~10 relevant chunks instead. Read full files only when you need surrounding context that search didn't provide.
+**Batch multiple lookups in one call** with `rag_batch_search` — saves tool round-trips (each replay costs O(n) tokens):
+```
+rag_batch_search(queries=[
+  {"query": "ArrayList append", "collection": "zig-stdlib"},
+  {"query": "HashMap put getOrPut", "collection": "zig-stdlib"},
+  {"query": "error handling patterns", "collection": "zig-references"}
+])
+```
+
+**Prefer RAG over file reads.** Reference files total 500k+ tokens. A targeted search returns ~10 relevant chunks instead. Read full files only when you need surrounding context that search didn't provide.
 
 ### Reference file index
 
