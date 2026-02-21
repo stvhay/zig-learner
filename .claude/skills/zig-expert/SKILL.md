@@ -150,10 +150,31 @@ defer conn.stream.close();
 const n = try conn.stream.read(&buf);
 try conn.stream.writeAll(response);
 
+// TCP client: connect to remote address
+const addr = std.net.Address.parseIp4("127.0.0.1", port) catch unreachable;
+const stream = try std.net.tcpConnectToAddress(addr);
+defer stream.close();
+try stream.writeAll(request_bytes);
+const n = try stream.read(&buf);  // buf[0..n] = response
+
 // Socket timeout: SO_RCVTIMEO via setsockopt
 const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
 std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
     std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
+// GOTCHA: SO_RCVTIMEO does NOT unblock accept() on macOS — use self-connection
+
+// Signal handling (SIGINT/SIGTERM): posix.Sigaction + sigaction
+const sa = std.posix.Sigaction{
+    .handler = .{ .handler = myHandler },  // fn(c_int) callconv(.c) void
+    .mask = std.posix.sigemptyset(),
+    .flags = 0,
+};
+std.posix.sigaction(std.posix.SIG.INT, &sa, null);  // no catch on macOS
+
+// Performance timing: nanoTimestamp (i128)
+const t0 = std.time.nanoTimestamp();
+// ... work ...
+const elapsed_ns: u64 = @intCast(std.time.nanoTimestamp() - t0);
 
 // Dir.close() requires *Dir (mutable) — use `var dir = openDir(...)` not `const`
 
@@ -292,9 +313,9 @@ When RAG results aren't sufficient, these are the full files in `references/`:
 
 Training is organized into **lesson plans** in `src/lesson-plans/`. Each plan is a numbered directory containing numbered lessons. A lesson is either a flat `.md` file (quiz only) or a subdirectory with `quiz.md` + fixture files.
 
-**Execution:** Work through lessons in order. Grade each, reflect, update skill. After completing a plan, write a final self-evaluation report. Record grades in `GRADES.md` within the plan directory.
+**Execution:** Lessons run in two modes. Mode 1: read quiz and SKILL.md once, work exercises, write grades to GRADES.md, return. Mode 2: orchestrator resumes you with cost data — reflect, update SKILL.md, curate snippets, record cost, commit. After completing a plan, write a final self-evaluation report.
 
-**Token efficiency:** Minimize token waste — read the quiz once (not per-exercise), batch difficulty-1 exercises, use RAG instead of full file reads. Record estimated token usage in GRADES.md for each lesson (total tokens, tool calls, tokens/exercise) to track learning throughput.
+**Cost efficiency:** Every tool round-trip replays the full conversation — cost grows O(n²) with turn count. **Batch aggressively:** write multiple solutions in one turn, test them in one turn. **Front-load reads:** read all reference material in your first turn. **Minimize tool results:** pipe verbose output through `head`/`tail`/`grep`. **Fail less:** a compile-fix-recompile cycle costs 3 turns of replay — use RAG before writing, not after failing.
 
 **Creating plans:** Add a numbered directory with lesson entries. The agent can create new plans autonomously.
 

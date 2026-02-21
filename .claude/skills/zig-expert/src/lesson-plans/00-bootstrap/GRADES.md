@@ -1086,3 +1086,97 @@ All 6 tests pass.
 - Number of tool calls: ~40
 - Tokens per exercise: ~7,500
 - Actual (Task tool): 128,624 tokens, 75 tool calls
+
+---
+
+# Lesson 06 (Applied): HTTP Load Balancer -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | TCP Proxy - forward to one backend | 5 | 0 | 5 | A |
+| 2 | Log incoming requests | 5 | 0 | 5 | A |
+| 3 | Concurrent client handling | 5 | 0 | 5 | A |
+| 4 | Round-robin across multiple backends | 5 | 0 | 5 | A |
+| 5 | Backend connection error handling | 5 | 0 | 5 | A |
+| 6 | Health check - background polling | 5 | 0 | 5 | A |
+| 7 | Skip unhealthy backends in routing | 5 | 0 | 5 | A |
+| 8 | X-Forwarded-For header | 5 | 0 | 5 | A |
+| 9 | Read full HTTP responses | 5 | 0 | 5 | A |
+| 10 | Connection timeouts | 5 | 0 | 5 | A |
+| 11 | Graceful shutdown | 5 | 0 | 5 | A |
+| 12 | Statistics endpoint | 5 | 0 | 5 | A |
+| **TOTAL** | | **60** | **-2** | **58** | **A** |
+
+**Overall: 58/60 = 96.7% = A**
+
+**Compile failures: 1 (known mistake, -2 pts)**
+
+## Detailed Notes
+
+### Compile Failure #1 (-2 pts, known mistake)
+
+**Error:** Used `std.ArrayList(T).init(alloc)` instead of the 0.15.2 `.empty` pattern. The ArrayList API changed from `.init(allocator)` (stored allocator) to `.empty` (per-method allocator) in 0.15.2.
+
+**Error message:** `struct 'array_list.Aligned(...)' has no member named 'init'`
+
+**Root cause:** Reverted to the old 0.14 `ArrayList.init(alloc)` pattern despite SKILL.md explicitly documenting `var list: std.ArrayList(i32) = .empty;` as the correct 0.15.2 API. This is pitfall #1 and has been hit before (Lesson 01). -2 pts per the rubric (known mistake in skill KB).
+
+**Fix:** Changed to `.empty` init and `deinit(alloc)` with per-method allocator passing.
+
+### All Exercises: Functionally Correct
+
+After fixing the single compile error, all 12 exercises produced correct results verified with curl and test backends:
+
+- **Q1**: Proxy forwards request to backend, returns response to client. Verified with `curl /` and `curl /health`.
+- **Q2**: Log format `127.0.0.1:PORT -> 127.0.0.1:PORT "METHOD PATH VERSION" STATUS` correct. Logs after response sent.
+- **Q3**: Slow client (3s /slow endpoint) doesn't block fast client. Thread.spawn + detach per connection.
+- **Q4**: Round-robin distributes across 3 backends using atomic counter. 6 requests cycle A->B->C->A->B->C.
+- **Q5**: Dead backend returns `502 Bad Gateway` with error log. LB continues serving other backends.
+- **Q6**: Background health check thread detects transitions: `HEALTH: 127.0.0.1:8082 UP -> DOWN` and `DOWN -> UP`. Configurable interval via `--health-interval`.
+- **Q7**: Unhealthy backends skipped in routing. All backends down returns `503 Service Unavailable`.
+- **Q8**: X-Forwarded-For, X-Forwarded-Host, Host headers correctly set. Verified with /echo endpoint returning JSON headers.
+- **Q9**: Large responses (138KB) forwarded correctly using streaming approach. Files match byte-for-byte via diff.
+- **Q10**: SO_RCVTIMEO (10s) and SO_SNDTIMEO (2s) set on backend sockets. /slow (3s) succeeds within timeout.
+- **Q11**: SIGINT handler sets atomic `running` flag. Shutdown monitor unblocks accept() via self-connection (macOS workaround). Prints `Shutting down...` and `Shutdown complete.` Waits up to 5s for in-flight requests.
+- **Q12**: `/__lb/stats` returns valid JSON with uptime, total_requests, active_connections, and per-backend stats (address, healthy, requests_served, errors, avg_response_ms).
+
+### Architecture Notes
+
+The final program is approximately 580 lines, organized as:
+
+- **Global state**: Backend array, atomic counters (round-robin, active connections, total requests), start time, health interval
+- **parseRequestLine / parseStatusCode**: HTTP protocol parsing
+- **findContentLength / findHeaderEnd / asciiStartsWithIgnoreCase**: HTTP header utilities
+- **rewriteRequest**: Q8 header rewriting (XFF, XFH, Host replacement)
+- **handleStats**: Q12 JSON stats response builder
+- **selectBackend**: Q7 round-robin with health check integration
+- **streamResponse**: Q9 streaming proxy (headers in buffer, body in chunks up to 32KB)
+- **handleConnection**: Main per-connection handler (Q1-Q12 combined)
+- **forwardOriginal**: Fallback path when header rewrite fails
+- **healthCheckLoop / checkBackendHealth**: Q6 background health polling
+- **signalHandler / shutdownMonitor**: Q11 graceful shutdown
+- **main**: CLI parsing, server setup, accept loop, shutdown coordination
+
+Key design decisions:
+- **Streaming vs buffering**: Used streaming for Q9 to avoid 10MB stack allocation in spawned threads. Headers buffered in 16KB, body streamed in 32KB chunks.
+- **Sleep-first health check**: Health check loop sleeps before checking, so backends start as healthy. This avoids false DOWN transitions at startup.
+- **macOS accept() workaround**: Self-connection in shutdown monitor thread to unblock the blocking accept() call, since SO_RCVTIMEO doesn't work on accept() on macOS.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| All (pre-Q1) | 1 | `has no member named 'init'` | Used ArrayList.init(alloc) instead of .empty | Yes |
+
+Total compile failures: 1
+- Known pitfall violations: 1 (cost: -2 pts)
+- New mistakes: 0
+
+## Token Usage
+
+- Estimated total tokens consumed: ~110,000 (input + output)
+- Number of tool calls: ~30
+- Tokens per exercise: ~9,167
+- Actual (session-cost.py): 37 API turns, $3.67 total (context replay $1.73 47%, cache writes $1.18 32%, output $0.49 13%, system replay $0.26 7%)
