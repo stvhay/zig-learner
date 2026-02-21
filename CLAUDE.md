@@ -122,6 +122,18 @@ When using subagents (Task tool) for lessons:
 3. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
 4. **RAG usage** — The subagent should use `mcp__ragling__rag_search` to look up API details, pitfalls, and patterns *during* exercises, not just before. Search before coding each exercise if unsure about an API.
 
+### Orchestrator Reporting
+
+After each lesson completes, the orchestrating agent must assess and report to the user on three dimensions:
+
+1. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
+2. **RAG usage** — Did the agent search RAG during exercises? What queries did it make? Check the query log at `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/` for future RAG indexing?
+3. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)? Check the task output for `"Skill"` tool calls.
+
+Also append the actual token count from the Task tool (`total_tokens`, `tool_uses`) to the lesson's Token Usage section in GRADES.md.
+
+Update `SELF-IMPROVEMENT.md` in the plan directory with findings.
+
 ## Skill Discovery
 
 On session start, a hook runs `.claude/scripts/scan-skills.py` to populate `.zig-expert.json`. Use `.claude/scripts/skill.py` to list, view, and annotate skills. Notes persist across sessions. When launching lesson subagents, include annotated skills in the prompt so the subagent knows what to invoke (it has the Skill tool but can't see the skill list).
