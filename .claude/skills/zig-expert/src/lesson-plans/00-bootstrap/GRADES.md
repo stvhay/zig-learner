@@ -1856,3 +1856,185 @@ Cost per exercise: $0.77. Cost per point: $0.185.
 Phase 3 consumed 61% of the total cost despite covering only 33% of exercises. The 53-turn count reflects 6 compile/test failures requiring fix cycles. The ArrayList `.init` mistake alone caused 3 of those cycles (-6 pts, ~$2-3 of wasted context replay). Phase 2 was the most efficient: 10 turns, $1.54, zero failures.
 
 Compared to Lesson 09 (IRC Client): 47 turns / $4.51 -- this lesson was 72% more turns and 105% more expensive. The cost inflation is entirely attributable to Phase 3's known-pitfall recurrences.
+
+---
+
+# Lesson 11: LSP Server (Applied) — Grades
+
+## Phase 1 (Q1–Q4)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 1  | LSP Transport — Read/Write Messages | 5 | 4 | -1 (runtime crash: double-free in readMessage) | B |
+| 2  | JSON-RPC Message Types | 5 | 4 | -1 (runtime crash: dangling pointer after parsed.deinit) | B |
+| 3  | Initialize Handshake | 5 | 5 | none | A |
+| 4  | Document Store | 5 | 5 | none | A |
+| **Total** | | **20** | **18** | **-2** | **A (90%)** |
+
+### Detailed Notes
+
+**Q1 (4/5 — B):**
+- 1 runtime crash (counts as compile failure): double-free in the "Content-Length too long" test. The `errdefer allocator.free(body)` fired simultaneously with a manual `allocator.free(body)` call before `return ReadError.EndOfStream`. Fix: removed the manual free, relying solely on `errdefer`.
+- All 8 tests pass after fix. Tests cover: round-trip, extra whitespace/headers, missing Content-Length, Content-Length mismatch (short and long), EOF during headers, multiple sequential messages.
+- New mistake (not in skill knowledge base): -1 point.
+
+**Q2 (4/5 — B):**
+- 1 runtime crash: segfault accessing `msg.method.?` after `parseJsonRpc` returned. Root cause: `parsed.deinit()` freed the arena containing the parsed `std.json.Value` tree, and even with `.alloc_if_needed`, accessing the returned string slice caused a crash with `testing.allocator` (which poisons freed memory). Fix: switched to `.allocate = .alloc_always` and `allocator.dupe(u8, s)` for the method string, ensuring the returned slice survives `deinit()`.
+- All 5 tests pass after fix. Tests cover: parse request, parse notification, format response, format error, format notification.
+- New mistake (not in skill knowledge base): -1 point. Key learning: when returning `[]const u8` slices extracted from a `std.json.Value` tree that will be freed via `parsed.deinit()`, always dupe the strings with the caller's allocator.
+
+**Q3 (5/5 — A):**
+- 0 compile failures. Pre-compile edit: changed `.null == {}` to `== .null` for comparing JSON null values (caught during code review before first compile).
+- All 5 tests pass. Tests cover: initialize returns capabilities, request before initialize returns -32002, shutdown+exit clean exit, exit without shutdown gives code 1, full lifecycle via transport layer.
+- Server correctly tracks state (uninitialized/initialized/shutting_down), rejects pre-init requests with -32002, responds with correct capabilities including textDocumentSync:1, completionProvider, hoverProvider, serverInfo.
+
+**Q4 (5/5 — A):**
+- 0 compile failures. Clean first compile.
+- All 8 tests pass. Tests cover: full lifecycle (open/change/close), stored metadata fields, version update on change, close removes from map, open same URI twice replaces, access closed document returns null, multiple documents, change nonexistent is no-op.
+- Memory management: all strings (URI, languageId, text) are duped on insert and freed on remove/replace. Uses `fetchRemove` for atomic key+value retrieval on close. Correctly handles key/uri aliasing (same allocation).
+
+### Quality Assessment
+- Code quality: A (clean structure, proper error handling, comprehensive tests, good memory management)
+- No quality penalties applied
+
+## Phase 2 (Q5–Q8)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 5  | Diagnostics — Line Length and Heading Analysis | 5 | 5 | 0 | A |
+| 6  | Completion — Markdown Snippets | 5 | 5 | 0 | A |
+| 7  | Hover — Heading and Link Info | 5 | 5 | 0 | A |
+| 8  | Request Dispatch and Method Routing | 5 | 4 | -1 (1 compile fail, new: slice constness mismatch) | B |
+| **Total** | | **20** | **19** | **-1** | **A (95%)** |
+
+Code quality: A (no additional penalty). All solutions are well-structured with clean separation, proper memory management, and comprehensive tests.
+
+### Detailed Notes
+
+**Q5 — Diagnostics (5/5, A):**
+- 0 compile failures. Clean first compile, all 10 tests pass.
+- Implements 4 diagnostic rules: line length >80 chars (warning), missing space after heading `#` marker (error), empty document (hint), trailing whitespace (information).
+- Each diagnostic includes precise range (line + character span), severity, source ("cclsp"), and descriptive message.
+- `formatPublishDiagnostics` produces valid JSON-RPC notification.
+- `freeDiagnostics` helper for clean memory management.
+- Uses `std.ArrayList(Diagnostic)` with `.empty` + per-method allocator correctly.
+
+**Q6 — Completion (5/5, A):**
+- 0 compile failures. Clean first compile, all 6 tests pass.
+- At line start: offers 7 structural completions (H1, H2, H3, bullet, numbered, blockquote, code block).
+- After `[`: offers link template `[text](url)`.
+- After `!`: offers image template `![alt](url)`.
+- Otherwise: offers word completions (unique words >= 3 chars from document).
+- Uses `std.StringHashMap` for dedup of word completions. `collectWords` tokenizes by non-alphanumeric boundaries.
+- `formatCompletionResult` produces valid JSON with `isIncomplete: false`.
+
+**Q7 — Hover (5/5, A):**
+- 0 compile failures. Clean first compile, all 8 tests pass.
+- On heading: returns `**Heading Level N** (M characters)`.
+- On link `[text](url)`: returns `Link: url` with precise range of the link.
+- On word: returns `'word' appears N time(s) in this document` with correct pluralization.
+- On empty line: returns null.
+- `findLinkAt` scans backwards for `[` and forwards for `](url)` to detect links at any cursor position within the link syntax.
+- `formatHoverResult` produces valid JSON with `contents.kind: "markdown"` and `range`.
+
+**Q8 — Request Dispatch and Method Routing (4/5, B):**
+- 1 compile failure, then all 9 tests pass.
+- Full server with `Server` struct containing state machine + `DocumentStore`.
+- `processMessage` returns `ProcessResult` with response, notifications, exit signal.
+- Routes 9 methods: initialize, initialized, shutdown, exit, textDocument/didOpen, textDocument/didChange, textDocument/didClose, textDocument/completion, textDocument/hover.
+- Unknown request -> -32601, unknown notification -> silently ignored.
+- Malformed JSON -> -32700, pre-init request -> -32002.
+- `didOpen`/`didChange` trigger inline diagnostics analysis and produce `publishDiagnostics` notifications.
+- `didClose` sends empty diagnostics to clear.
+- Integration test covers full lifecycle: init -> didOpen (with diags) -> completion -> hover -> didClose -> shutdown -> exit.
+
+### Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Q8 | 1 | `[][]u8` cannot coerce to `[][]const u8` | Allocated `[]u8` items but struct field is `[]const []const u8` — Zig's pointer type child constness rules prevent implicit cast | No |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+## Phase 3 (Q9–Q12)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 9  | Diagnostic — Markdown Link Validation | 5 | 5 | 0 | A |
+| 10 | Go-to-Definition for Headings | 5 | 5 | 0 | A |
+| 11 | Document Symbols | 5 | 5 | 0 | A |
+| 12 | End-to-End Integration Test | 5 | 4 | -1 (1 compile fail, new: memory leak in hover handler) | B |
+| **Total** | | **20** | **19** | **-1** | **A (95%)** |
+
+Code quality: A (no additional penalty). All solutions are well-structured with proper memory management, comprehensive tests, and clean separation of concerns.
+
+### Detailed Notes
+
+**Q9 — Diagnostic Extension (5/5, A):**
+- 0 compile failures. Clean first compile, all 13 tests pass.
+- Implements 4 new diagnostic rules:
+  - Rule 5: Broken link syntax `[text]` without `(url)` following → Warning
+  - Rule 6: Image without alt text `![](url)` → Warning
+  - Rule 7: Duplicate headings at same level → Information
+  - Rule 8: Heading level skip (e.g., H1 to H3 without H2) → Warning
+- All original rules (1-4) still work correctly.
+- Uses `findClosingBracket` helper for proper bracket nesting.
+- Image links (`![...]`) are explicitly excluded from Rule 5 to avoid false positives.
+- Heading tracking uses level+text composite key for duplicate detection (same text at different levels is allowed).
+
+**Q10 — Go-to-Definition (5/5, A):**
+- 0 compile failures. Clean first compile, all 10 tests pass.
+- `computeAnchor`: lowercase, spaces→hyphens, strip non-alphanumeric (keep hyphens).
+- `getDefinition`: finds `[text](#anchor)` at cursor position, resolves to heading line.
+- `buildHeadingIndex`: maps anchor → (line, text, hash_count) for fast lookup.
+- Proper memory management: heading index keys freed via `freeHeadingIndex`.
+- `findAnchorRefAt`: searches backwards for `[` then forwards for `](#anchor)` pattern.
+- `formatLocationResult` produces valid LSP Location JSON.
+
+**Q11 — Document Symbols (5/5, A):**
+- 0 compile failures. Clean first compile, all 6 tests pass.
+- Builds hierarchical DocumentSymbol tree: H2 under H1, H3 under H2, etc.
+- Headings use SymbolKind.string (15), code blocks use SymbolKind.value (12).
+- `selectionRange` correctly excludes the `# ` prefix.
+- Two-pass approach: first collect flat symbols, then build hierarchy recursively.
+- Code block detection: tracks ```` ``` ```` open/close pairs, code blocks become children of current heading.
+- `freeDocumentSymbols` recursively frees nested children.
+- `formatJson` method on DocumentSymbol for JSON serialization.
+
+**Q12 — End-to-End Integration (4/5, B):**
+- 1 compile failure (memory leak), then all 5 tests pass.
+- **Compile failure #1 (-1 pt, new):** `allocPrint` for hover JSON result was not freed before `formatResponse` wrapped it in a new allocation. `testing.allocator` detected the leak. Fix: added `defer self.allocator.free(hover_json)` before `formatResponse`.
+- Implements `LspClient` helper with `sendRequest` and `sendNotification` methods.
+- Full test scenario: initialize → initialized → didOpen (with errors) → verify diagnostics → completion → hover on heading → didChange (fix errors) → verify diagnostics cleared → didClose → shutdown → exit.
+- Additional tests: pre-init rejection (-32002), unknown method (-32601), malformed JSON (-32700), transport layer round-trip.
+- Uses in-memory Server struct approach (consistent with Q8's design) rather than child process spawn, since there's no build.zig for a standalone binary.
+
+### Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| Q12 | 1 | Memory leak (testing.allocator) | `allocPrint` result for hover JSON not freed before `formatResponse` created new allocation wrapping it | No (memory ownership discipline) |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+## Consolidated Summary
+
+| Phase | Exercises | Max | Earned | Grade |
+|-------|-----------|-----|--------|-------|
+| 1     | Q1-Q4     | 20  | 18     | A (90%) |
+| 2     | Q5-Q8     | 20  | 19     | A (95%) |
+| 3     | Q9-Q12    | 20  | 19     | A (95%) |
+| **Total** | **Q1-Q12** | **60** | **56** | **A (93%)** |
+
+## Token Usage
+
+| Phase | Turns | Cost |
+|-------|-------|------|
+| Phase 1 (Q1-Q4) | 26 | $2.08 |
+| Phase 2 (Q5-Q8) | 18 | $2.57 |
+| Phase 3 (Q9-Q12) | 17 | $2.84 |
+| **Total** | **61** | **$7.49** |

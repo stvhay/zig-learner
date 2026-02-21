@@ -142,6 +142,14 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 //   unreachable if all variants are covered. Use bare `catch` when mapping all to one value.
 //   Example: FixedBufferStream reader only has StreamTooLong — `else => err` is compile error.
 // StringHashMap key/value ownership: if key_ptr.* and value.name alias the same alloc, free once only
+// ⚠️ errdefer + manual free = double-free: if `errdefer allocator.free(buf)` is active,
+//   do NOT also `allocator.free(buf)` before returning an error — errdefer fires on return.
+//   Choose one owner: errdefer for cleanup-on-error, or manual free + no errdefer.
+// ⚠️ Intermediate allocation leak: when chaining allocPrint → formatResponse (both allocate),
+//   the first result leaks unless freed: `defer allocator.free(intermediate);`
+//   before calling the wrapper that produces the final allocation.
+// ⚠️ Nested slice constness: [][]u8 does NOT coerce to [][]const u8 — the inner pointer's
+//   mutability is part of the type. Allocate []const u8 items directly if the target is [][]const u8.
 
 // C zlib (std.compress.flate.Compress has @panic("TODO") — pitfall #38)
 const c = @cImport(@cInclude("zlib.h"));
@@ -338,7 +346,7 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 Rules where Zig idiom diverges from other languages:
 1. **`if (opt) |val|` not `opt.?`** — payload captures don't panic; `.?` does
 2. **`StaticStringMap` for string dispatch** — comptime hash + enum + exhaustive switch
-3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire. **LIFO is absolute**: on the error path, `defer` and `errdefer` interleave strictly by registration order (last registered = first to fire). A `defer` registered *after* an `errdefer` fires *before* the errdefer — there is no grouping by type. **Timing**: defers execute *after* the return expression is evaluated — you cannot observe their side effects through a function's return value.
+3. **`defer`/`errdefer` adjacent to allocation** — cleanup paired with acquire. **LIFO is absolute**: on the error path, `defer` and `errdefer` interleave strictly by registration order (last registered = first to fire). A `defer` registered *after* an `errdefer` fires *before* the errdefer — there is no grouping by type. **Timing**: defers execute *after* the return expression is evaluated — you cannot observe their side effects through a function's return value. **Double-free trap**: if `errdefer allocator.free(x)` is registered, never also manually `allocator.free(x)` before returning an error — the errdefer fires on return, freeing twice.
 4. **`anytype` for writer params** — concrete writer types don't compose
 5. **Create resources once** — writer in main(), pass as parameter
 6. **Honor accepted allocators** — never `_ = allocator` then hardcode
