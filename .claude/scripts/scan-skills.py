@@ -25,16 +25,13 @@ def parse_frontmatter(path: Path) -> dict | None:
     return fields
 
 
-def main():
-    # Determine project root from stdin (hook input) or fallback to cwd
-    project_dir = Path.cwd()
-    try:
-        hook_input = json.load(sys.stdin)
-        if "cwd" in hook_input:
-            project_dir = Path(hook_input["cwd"])
-    except (json.JSONDecodeError, EOFError):
-        pass
+def project_root() -> Path:
+    """Derive project root from script location (.claude/scripts/ -> root)."""
+    return Path(__file__).resolve().parent.parent.parent
 
+
+def main():
+    project_dir = project_root()
     skills_dir = project_dir / ".claude" / "skills"
     output_path = project_dir / ".zig-expert.json"
 
