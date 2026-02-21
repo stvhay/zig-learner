@@ -50,7 +50,8 @@ Each lesson follows this cycle:
    - Identify patterns that led to clean passes; verify the skill documents them
    - Flag skill entries that seem wrong or stale
 3. **Skill update** — Capture new knowledge into the skill. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing — it defines structure, CSO, and quality standards.
-4. **Commit** — Commit per the Commit Strategy below (one lesson commit with GRADES.md + SKILL.md changes together).
+4. **Snippet curation** — If any exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/` (or a new file there). These are indexed by RAG and help future sessions find working code. Don't dump raw solutions — curate: one small, commented, testable snippet per pattern.
+5. **Commit** — Commit per the Commit Strategy below (one lesson commit with GRADES.md + SKILL.md + any new snippets together).
 
 ### Output Directories
 
