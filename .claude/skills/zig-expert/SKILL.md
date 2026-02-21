@@ -117,7 +117,9 @@ pub fn format(self: Self, writer: anytype) !void { ... }
 // catch |_| → bare catch; sort → std.sort.pdq()
 // @fieldParentPtr("field_name", ptr) — string first
 // StringHashMap.deinit() does NOT free keys — free via keyIterator() first
-// No self-referential slices in value structs — use method to reconstruct
+// No self-referential slices in value structs — use len + method to reconstruct:
+//   params_buf: [15][]const u8, params_len: usize, fn params() []const []const u8
+// Case-insensitive string comparison: std.ascii.eqlIgnoreCase(a, b) → bool
 // mem.sliceTo requires sentinel-terminated ptr ([*:0]u8), NOT plain [*]u8
 // Function params shadow same-named methods — rename to avoid compile error
 // `_ = x;` is compile error if x was mutated — restructure to avoid the variable
@@ -290,6 +292,7 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Enum bit flags (no allocator) | `EnumSet` |
 | Fixed string→value (O(1)) | `StaticStringMap` |
 | O(1) insert/remove, stable ptrs | `DoublyLinkedList` (intrusive) |
+| Bounded collection (max N known) | Fixed array `[N]T` + `len: usize` + method (no allocator needed) |
 
 **Concurrency primitives** (all use `.{}` static init — no `.init()` function):
 | Primitive | Init | Key API |

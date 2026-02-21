@@ -1446,3 +1446,148 @@ Actual (Task tool): 99 API turns, $11.55 total (system replay $0.71, context rep
 Cost breakdown: context replay 66%, cache writes 19%, output 9%, system replay 6%.
 
 Compared to Lesson 07 (Git Internals): 61 turns / $6.79 -- 70% more expensive. The higher cost reflects: 12 exercises building a full crypto pipeline, 3 compile-fix cycles (ArrayList x3), 1 runtime debug cycle (parseFromSlice dangling pointers), 1 CLI debug cycle (bufferedReaderSize + buffer aliasing), and a context compaction mid-session. The context replay dominance (66%) suggests too many tool round-trips -- future lessons should batch more aggressively.
+
+---
+
+# Lesson 09: IRC Client (Applied) — Grades
+
+## Phase 1 (Q1–Q4)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 1  | IRC Message Parser | 5 | 4 | -1 (self-referential slice segfault, 1 compile fix) | B |
+| 2  | Prefix Parser | 5 | 5 | 0 | A |
+| 3  | TCP Connection & Registration | 5 | 5 | 0 | A |
+| 4  | PING/PONG Handler | 5 | 5 | 0 | A |
+| **Total** | | **20** | **19** | **-1** | **A (95%)** |
+
+### Detailed Notes
+
+**Q1 — IRC Message Parser (4/5)**
+- First attempt crashed with segfault: the `Message` struct stored a `params: []const []const u8` slice pointing into its own `params_buf`. When the struct was returned by value, the slice became a dangling pointer (classic self-referential struct problem).
+- Fix: replaced the `params` slice field with `params_len: usize` and a `params()` method that reconstructs the slice on demand. This follows the SKILL.md guidance: "No self-referential slices in value structs — use method to reconstruct."
+- **Deduction**: -1 point (1 compile/crash fix for a mistake not previously in the skill knowledge base).
+- All 5 required tests pass: PING, numeric 001, PRIVMSG, JOIN, QUIT (no params).
+
+**Q2 — Prefix Parser (5/5)**
+- Clean first compile, all 4 tests pass.
+- Handles all three formats: full nick!user@host, server-only, nick@host (no user).
+- Code is straightforward with optional chaining via `if (bang) |b|`.
+
+**Q3 — TCP Connection & Registration (5/5)**
+- Clean first compile, all 4 tests pass.
+- Implemented `Connection` struct with `sendNick`, `sendUser`, `sendPong` methods plus standalone `formatNick`, `formatUser`, `formatPong` functions for testability.
+- Uses `std.fmt.bufPrint` with `{s}` specifier consistently.
+- `readLine` method takes `anytype` reader parameter for flexibility.
+
+**Q4 — PING/PONG Handler (5/5)**
+- Clean first compile, all 7 tests pass.
+- Reuses `parseMessage` from Q1 (copy, not import — separate test file).
+- `extractPingToken` separates concern from formatting; `handlePingPong` composes both.
+- Tested: simple token, numeric token, multi-word token (trailing param with spaces), non-PING messages return null.
+
+## Phase 2 (Q5–Q8)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 5  | Display Incoming Messages | 5 | 5 | 0 | A |
+| 6  | User Input — JOIN, PART, QUIT | 5 | 5 | 0 | A |
+| 7  | Concurrent I/O — Mutex & Threads | 5 | 5 | 0 | A |
+| 8  | NICK Command & Error Handling | 5 | 5 | 0 | A |
+| **Total** | | **20** | **20** | **0** | **A (100%)** |
+
+### Detailed Notes
+
+**Q5 — Display Incoming Messages (5/5)**
+- Clean first compile, all 13 tests pass.
+- Implemented `formatDisplay` that handles PRIVMSG (channel vs DM), JOIN, PART (with/without reason), QUIT (with/without message), NICK changes, NOTICE, numeric 332 (TOPIC), 353 (NAMES), 001-004 (welcome), and other numerics (raw display).
+- Used `std.ascii.eqlIgnoreCase` for command matching, `std.fmt.parseInt` for numeric detection.
+- Extracts nick from prefix using `parsePrefix` from Q2 (copy inlined for self-contained test file).
+- Arrow characters (UTF-8 encoded: `\xe2\x86\x92` for right arrow, `\xe2\x86\x90` for left arrow) used for JOIN/PART/QUIT display.
+
+**Q6 — User Input — JOIN, PART, QUIT Commands (5/5)**
+- Clean first compile, all 14 tests pass.
+- Designed as `UserCommand` tagged union with variants: `join`, `part`, `quit`, `privmsg`, `err`.
+- Separate format functions (`formatJoin`, `formatPart`, `formatQuit`, `formatPrivmsg`) for IRC wire format.
+- `parseUserInput` handles: `/join #channel`, `/part` (active channel), `/part #channel reason`, `/quit [message]`, plain text as PRIVMSG.
+- Error cases: no active channel for `/part` or plain text.
+
+**Q7 — Concurrent I/O — Mutex & Threads (5/5)**
+- Clean first compile, all 4 tests pass.
+- `SharedState` struct with `std.Thread.Mutex` protecting active channel, nickname, and quit flag.
+- Fixed-size buffers (64 bytes) avoid allocator dependency — copies in/out for thread safety.
+- Concurrent stress test: 1 writer thread + 2 reader threads x 1000 iterations each, verifies no corruption.
+- Mutex init: `.{}` (static init, no `.init()` — correct 0.15.2 pattern).
+
+**Q8 — NICK Command & Error Handling (5/5)**
+- Clean first compile, all 9 tests pass.
+- `NickState` struct tracks current nick, registration status, retry count.
+- `processMessage` returns `NickResult` tagged union: `.none`, `.display`, `.send`, `.fatal`.
+- 433 during registration: auto-appends `_` and returns `.send` with the retry NICK command. After 3 retries, returns `.fatal`.
+- 433 after registration: returns `.display` with error message (no auto-retry).
+- 432: returns `.display` with "Invalid nickname" message.
+- 001: marks registered, updates nick from server's confirmed name.
+- NICK confirmation: updates internal nickname, returns display string.
+
+## Phase 3 (Q9–Q12)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 9  | Channel State Tracking | 5 | 5 | 0 | A |
+| 10 | Private Messages (DMs) | 5 | 5 | 0 | A |
+| 11 | TOPIC and WHO Commands | 5 | 5 | 0 | A |
+| 12 | CLI Interface & Graceful Shutdown | 5 | 5 | 0 | A |
+| **Total** | | **20** | **20** | **0** | **A (100%)** |
+
+### Detailed Notes
+
+**Q9 — Channel State Tracking (5/5)**
+- Clean first compile, all 11 tests pass.
+- `ChannelState` uses fixed-size arrays (16 channels max, 256 users per channel) to avoid allocator dependency. No ArrayList or HashMap needed for test-only code.
+- `ChannelInfo` tracks per-channel user list with `addUser`/`removeUser` (case-insensitive, mode-prefix-aware dedup).
+- `processServerMessage` handles JOIN (self and others), PART (self and others), QUIT (removes from all channels), 353 NAMREPLY (accumulates users), 366 ENDOFNAMES (finalizes).
+- `partChannel` shifts array elements and fixes active index correctly.
+- `formatChannels` marks active channel with `*`, `formatUsers` shows comma-separated user list.
+- `switchChannel` returns error string for unjoined channels, null on success.
+- Command parsing: `/users`, `/channels`, `/switch #channel`.
+
+**Q10 — Private Messages (DMs) (5/5)**
+- Clean first compile, all 9 tests pass.
+- `DmState` tracks last DM sender for `/reply`. Uses `isChannel()` to distinguish DMs from channel messages.
+- `processMessage` detects PRIVMSG where target is our nick (not a channel), formats `[DM] sender: text`, updates last sender.
+- `parseMsgCommand` parses `/msg nick message` into target+text. `parseReplyCommand` extracts text from `/reply message`.
+- Tested: DM detection, channel message non-detection, /reply with and without prior DM, multiple DMs updating last sender.
+
+**Q11 — TOPIC and WHO Commands (5/5)**
+- Clean first compile, all 14 tests pass.
+- `TopicState` stores per-channel topics in fixed-size arrays (max 16 channels).
+- `parseTopicCommand` returns `.query` (no text) or `.set_topic` (with text). Requires active channel.
+- `formatTopicDisplay` handles 332 (RPL_TOPIC), TOPIC change events (`:nick TOPIC #chan :text`), and WHOIS/WHO response numerics (311, 312, 313, 317, 318, 319, 352).
+- `/whois` and `/who` command parsing carefully disambiguated (e.g., `/who` does NOT match `/whois`).
+
+**Q12 — CLI Interface & Graceful Shutdown (5/5)**
+- Clean first compile, all 11 tests pass.
+- `parseCliArgs` handles both 3-arg (default port 6667) and 4-arg (explicit port) forms. Returns null on invalid port or wrong arg count.
+- `help_text` is a comptime string literal with all 12 commands listed. Test verifies all commands are present.
+- `formatQuit` produces wire-format QUIT with optional message. `isHelpCommand` and `parseQuitCommand` parse user input.
+- Usage text constant for display on wrong args.
+
+## Consolidated Summary
+
+| Phase | Exercises | Max | Earned | Grade |
+|-------|-----------|-----|--------|-------|
+| 1     | Q1-Q4     | 20  | 19     | A (95%) |
+| 2     | Q5-Q8     | 20  | 20     | A (100%) |
+| 3     | Q9-Q12    | 20  | 20     | A (100%) |
+| **Total** | **Q1-Q12** | **60** | **59** | **A (98.3%)** |
+
+## Token Usage
+
+| Phase | Turns | Cost ($) |
+|-------|-------|----------|
+| Phase 1 (Q1-Q4) | 19 | 1.35 |
+| Phase 2 (Q5-Q8) | 13 | 1.24 |
+| Phase 3 (Q9-Q12) | 15 | 1.92 |
+| **Total** | **47** | **4.51** |
+
+Cost per exercise: $0.38. Cost per point: $0.076.
