@@ -1,0 +1,174 @@
+From c6b166912c43e8cb0e0a649f93da2d8c62d3b290 Mon Sep 17 00:00:00 2001
+From: Steve Hay <github@stevenhay.com>
+Date: Fri, 20 Feb 2026 20:11:01 -0500
+Subject: [PATCH] feat: add passive query logging for ACE telemetry
+
+Append-only JSONL log of every search query with results, RRF scores,
+ranks, filters, and timing. Designed for downstream ACE Reflector
+consumption via tail -f.
+
+- New query_logger.py: log_query() appends one JSONL line per search,
+  using os.fsync() for immediate flush
+- Config: query_log_path defaults to {db_dir}/query_log.jsonl,
+  set to null in config JSON to disable
+- MCP server: instruments rag_search with timing and logging hook
+
+Signed-off-by: Steve Hay <github@stevenhay.com>
+---
+ src/ragling/config.py       | 13 ++++++++-
+ src/ragling/mcp_server.py   | 25 +++++++++++++++++
+ src/ragling/query_logger.py | 54 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 91 insertions(+), 1 deletion(-)
+ create mode 100644 src/ragling/query_logger.py
+
+diff --git a/src/ragling/config.py b/src/ragling/config.py
+index 6c147e0..5844792 100644
+--- a/src/ragling/config.py
++++ b/src/ragling/config.py
+@@ -113,6 +113,7 @@ class Config:
+     global_paths: tuple[Path, ...] = ()
+     users: MappingProxyType[str, UserConfig] = field(default_factory=lambda: MappingProxyType({}))
+     ollama_host: str | None = None
++    query_log_path: Path | None = None
+ 
+     @property
+     def group_index_db_path(self) -> Path:
+@@ -280,8 +281,17 @@ def load_config(path: Path | None = None) -> Config:
+         table_structure=enrichments_data.get("table_structure", True),
+     )
+ 
++    db_path = _expand_path(data.get("db_path", str(DEFAULT_DB_PATH)))
++
++    # query_log_path: absent → default alongside db, null → disabled, string → use it
++    if "query_log_path" in data:
++        qlp_raw = data["query_log_path"]
++        query_log_path = _expand_path(qlp_raw) if qlp_raw is not None else None
++    else:
++        query_log_path = db_path.parent / "query_log.jsonl"
++
+     config = Config(
+-        db_path=_expand_path(data.get("db_path", str(DEFAULT_DB_PATH))),
++        db_path=db_path,
+         embedding_model=data.get("embedding_model", "bge-m3"),
+         embedding_dimensions=data.get("embedding_dimensions", 1024),
+         chunk_size_tokens=data.get("chunk_size_tokens", 256),
+@@ -305,6 +315,7 @@ def load_config(path: Path | None = None) -> Config:
+         global_paths=global_paths,
+         users=MappingProxyType(users),
+         ollama_host=data.get("ollama_host"),
++        query_log_path=query_log_path,
+     )
+ 
+     return config
+diff --git a/src/ragling/mcp_server.py b/src/ragling/mcp_server.py
+index 1e03b02..00e42a1 100644
+--- a/src/ragling/mcp_server.py
++++ b/src/ragling/mcp_server.py
+@@ -493,12 +493,15 @@ def create_server(
+             collection, source_type, source_path, source_uri, score, and metadata)
+             and optional ``indexing_status`` when background indexing is active.
+         """
++        import time
++
+         from ragling.embeddings import OllamaConnectionError
+         from ragling.search import perform_search
+ 
+         visible = _get_visible_collections(server_config)
+         user_ctx = _get_user_context(server_config)
+ 
++        t0 = time.monotonic()
+         try:
+             results = perform_search(
+                 query=query,
+@@ -539,6 +542,28 @@ def create_server(
+             for r in results
+         ]
+ 
++        # Log query for ACE telemetry
++        cfg = _get_config()
++        if cfg.query_log_path:
++            from ragling.query_logger import log_query
++
++            duration_ms = (time.monotonic() - t0) * 1000
++            log_query(
++                log_path=cfg.query_log_path,
++                query=query,
++                filters={
++                    "collection": collection,
++                    "source_type": source_type,
++                    "date_from": date_from,
++                    "date_to": date_to,
++                    "sender": sender,
++                    "author": author,
++                },
++                top_k=top_k,
++                results=result_dicts,
++                duration_ms=duration_ms,
++            )
++
+         # Apply path mappings for SSE users
+         if user_ctx:
+             result_dicts = _apply_user_context_to_results(result_dicts, user_ctx)
+diff --git a/src/ragling/query_logger.py b/src/ragling/query_logger.py
+new file mode 100644
+index 0000000..e9ac6db
+--- /dev/null
++++ b/src/ragling/query_logger.py
+@@ -0,0 +1,54 @@
++"""Append-only query logging for ACE telemetry."""
++
++import json
++import logging
++import os
++from datetime import datetime, timezone
++from pathlib import Path
++from typing import Any
++
++logger = logging.getLogger(__name__)
++
++
++def log_query(
++    log_path: Path,
++    query: str,
++    filters: dict[str, Any],
++    top_k: int,
++    results: list[dict[str, Any]],
++    duration_ms: float,
++) -> None:
++    """Append a query log entry as a single JSONL line.
++
++    Flushes and fsyncs after each write so ``tail -f`` consumers
++    see entries immediately.
++    """
++    entry = {
++        "timestamp": datetime.now(timezone.utc).isoformat(),
++        "query": query,
++        "filters": {k: v for k, v in filters.items() if v is not None},
++        "top_k": top_k,
++        "results": [
++            {
++                "rank": i,
++                "title": r.get("title", ""),
++                "source_path": r.get("source_path", ""),
++                "source_type": r.get("source_type", ""),
++                "collection": r.get("collection", ""),
++                "rrf_score": r.get("score", 0),
++            }
++            for i, r in enumerate(results)
++        ],
++        "duration_ms": round(duration_ms, 1),
++    }
++
++    try:
++        fd = os.open(str(log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
++        try:
++            line = json.dumps(entry, separators=(",", ":")) + "\n"
++            os.write(fd, line.encode())
++            os.fsync(fd)
++        finally:
++            os.close(fd)
++    except OSError:
++        logger.warning("Failed to write query log to %s", log_path, exc_info=True)
+-- 
+2.51.2
+
