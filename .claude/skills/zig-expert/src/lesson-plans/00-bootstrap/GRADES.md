@@ -437,3 +437,155 @@ Total compile failures: 2
 - Estimated total tokens consumed: ~75,000 (input + output)
 - Number of tool calls: ~55
 - Tokens per exercise: ~3,000
+
+---
+
+# Lesson 06: Concurrency & Threading -- Grades
+
+## Summary
+
+| Ex | Topic | Max | Deductions | Earned | Grade |
+|----|-------|-----|------------|--------|-------|
+| 1 | Thread.spawn and join - basic worker pattern | 5 | 0 | 5 | A |
+| 2 | Multiple threads - parallel writes to separate slots | 5 | 0 | 5 | A |
+| 3 | threadlocal variables - per-thread isolation | 5 | 0 | 5 | A |
+| 4 | Thread.getCpuCount and Thread.sleep - utilities | 5 | 0 | 5 | A |
+| 5 | Mutex - lock/unlock with defer | 5 | 0 | 5 | A |
+| 6 | Condition variable - basic signal and wait | 5 | 0 | 5 | A |
+| 7 | Atomic.Value - init, load, store | 5 | 0 | 5 | A |
+| 8 | Atomic fetchAdd/fetchSub - returns OLD value | 5 | 0 | 5 | A |
+| 9 | Atomic bitwise - fetchOr, fetchAnd, fetchXor | 5 | 0 | 5 | A |
+| 10 | Atomic swap - unconditional exchange | 5 | 0 | 5 | A |
+| 11 | WaitGroup - start/finish/wait lifecycle | 5 | 0 | 5 | A |
+| 12 | ResetEvent - set/wait signaling between threads | 5 | 0 | 5 | A |
+| 13 | Semaphore - permits, wait, post | 5 | 0 | 5 | A |
+| 14 | spinLoopHint and cache_line - low-level hints | 5 | 0 | 5 | A |
+| 15 | Mutex protecting shared state across threads | 10 | 0 | 10 | A |
+| 16 | Condition variable - producer-consumer | 10 | 0 | 10 | A |
+| 17 | cmpxchgStrong - success/failure return semantics | 10 | 0 | 10 | A |
+| 18 | Atomic lock-free counter across threads | 10 | 0 | 10 | A |
+| 19 | Memory ordering - acquire/release publish pattern | 10 | 0 | 10 | A |
+| 20 | Thread.Pool with WaitGroup - manual finish() | 10 | -1 (compile fail) | 9 | A |
+| 21 | RwLock - concurrent readers, exclusive writer | 10 | 0 | 10 | A |
+| 22 | cmpxchgWeak retry loop - CAS spin pattern | 10 | 0 | 10 | A |
+| 23 | Multi-phase thread coordination with atomics | 10 | 0 | 10 | A |
+| 24 | Lock-free stack - generic CAS-based push/pop | 20 | 0 | 20 | A |
+| 25 | Barrier + pipeline - multi-stage parallel computation | 20 | 0 | 20 | A |
+| **TOTAL** | | **200** | **-1** | **199** | **A** |
+
+**Overall: 199/200 = 99.5% = A**
+
+## Detailed Notes
+
+### Exercise 20: Thread.Pool with WaitGroup (1 compile failure, -1 pt)
+
+**Compile failure #1 (-1 pt, new mistake):** Called `pool.spawn(worker, args)` without `try`. `Thread.Pool.spawn` returns an error union that must be handled. The quiz description and reference docs mention the pool API but do not explicitly highlight that `spawn` is fallible. Fixed by adding `try`.
+
+**Root cause:** Assumed `pool.spawn` was like `Thread.spawn` followed by a fire-and-forget handoff. In reality, the pool's spawn can fail (e.g., if the pool is shutting down or has internal errors).
+
+### All Other Exercises: Clean Pass
+
+24 out of 25 exercises passed on the first compile and first test run with zero deductions. All difficulty-1 exercises (thread basics, atomics, sync primitives) and difficulty-2 exercises (mutex contention, producer-consumer, CAS patterns, memory ordering, RwLock, phase coordination) plus both difficulty-3 exercises (lock-free stack, barrier+pipeline) were handled correctly.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|-------------|
+| 20 | 1 | "error union is ignored" | `pool.spawn` returns error union, needed `try` | No |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+## Post-Lesson Reflection
+
+### Patterns that caused compile failures
+
+1. **Thread.Pool.spawn returns error union**: Unlike the low-level `Thread.spawn` which also returns an error union (but is more obvious), `pool.spawn` is easy to overlook as fallible. The mental model of "pool accepts work" obscures the fact that queuing itself can fail. Added to SKILL.md concurrency table.
+
+### Patterns that led to clean passes
+
+1. **Static initialization with `.{}`**: All sync primitives (Mutex, Condition, RwLock, Semaphore, WaitGroup, ResetEvent) correctly initialized with `.{}`. No attempt to call `.init()`.
+2. **fetchAdd/fetchSub return OLD value**: The gotcha about returning the previous value was anticipated correctly. No confusion between old and new values.
+3. **cmpxchgStrong/Weak return semantics**: `null` = success, `?T` = failure with actual value. Applied correctly in retry loops.
+4. **Condition.wait in while loop**: Used `while (!predicate) cond.wait(&mutex)` throughout, never bare `if`. The spurious wakeup guard pattern was internalized.
+5. **WaitGroup lifecycle**: `start()` before spawn, `defer wg.finish()` inside worker, `wg.wait()` in main thread. Applied correctly in exercises 11, 20, and indirectly in 23/25.
+6. **Memory ordering**: `.release` on store paired with `.acquire` on load for the publish pattern. `.monotonic` for simple counters where ordering doesn't matter.
+7. **Lock-free stack CAS loop**: `cmpxchgWeak` in retry loop with proper ordering (`.release` for push, `.acq_rel` for pop) worked first try.
+8. **Barrier implementation**: `fetchAdd` + comparison against total, with `event.set()` from the last arriver and `event.wait()` from others.
+9. **Anonymous struct worker functions**: Used `struct { fn work(...) void { ... } }.work` pattern for inline thread functions, avoiding the need for module-level function declarations.
+10. **Atomic.Value for thread-safe shared state**: Used `Atomic.Value(T)` instead of raw `var` for all cross-thread data, with appropriate memory orderings.
+
+### Skill knowledge base updates made
+
+1. **Concurrency primitives table**: Added comprehensive table to SKILL.md covering all sync primitives (Thread, Mutex, Condition, RwLock, Semaphore, WaitGroup, ResetEvent, Thread.Pool) with init patterns and key API notes.
+2. **Atomics reference**: Added fetchAdd/fetchSub OLD value gotcha, cmpxchgStrong/Weak semantics, and memory ordering notes.
+3. **Thread.Pool.spawn error union**: Explicitly documented that `pool.spawn` returns error union and must use `try`.
+
+## Token Usage
+
+- Estimated total tokens consumed: ~70,000 (input + output)
+- Number of tool calls: ~45
+- Tokens per exercise: ~2,800
+
+---
+
+# 00-bootstrap Plan: Final Self-Evaluation Report
+
+## Overall Performance
+
+| Lesson | Score | Pct | Grade | Compile Fails | Test Fails |
+|--------|-------|-----|-------|---------------|------------|
+| 01 Core Language Fundamentals | 180/200 | 90% | A | 1 | 1 |
+| 02 Standard Library Essentials | 200/200 | 100% | A | 0 | 0 |
+| 03 Error Handling & Allocators | 194/200 | 97% | A | 1 | 1 |
+| 04 Comptime & Metaprogramming | 194/200 | 97% | A | 5 | 0 |
+| 05 Idioms & Design Patterns | 198/200 | 99% | A | 2 | 0 |
+| 06 Concurrency & Threading | 199/200 | 99.5% | A | 1 | 0 |
+| **TOTAL** | **1165/1200** | **97.1%** | **A** | **10** | **2** |
+
+## Recurring Patterns
+
+### Compile Failure Categories
+
+1. **0.15.2 API differences** (3 failures): ArrayList allocator access (L01), pool.spawn error union (L06), catch block type mismatch (L03). These stem from training data showing 0.14 patterns.
+
+2. **Comptime return type constraints** (4 failures): All in L04. Functions with comptime params that build strings cannot return `[]const u8` from comptime blocks. Must use `*const [N]u8`. This was the single hardest pattern to learn and produced the most failures in the plan.
+
+3. **Shadowing/naming** (2 failures): Parameter shadowing method names (L05), redundant comptime keyword (L04). Zig's strict scoping rules differ from most languages.
+
+4. **Type system strictness** (1 failure): `mem.sliceTo` requiring sentinel-terminated pointer type, not plain many-pointer (L05).
+
+### Test Failure Categories
+
+1. **defer/errdefer ordering** (2 failures across L01 and L03): The LIFO interleaving of defer and errdefer on the error path, plus the timing constraint that defers execute after the return expression. These were the most conceptually challenging aspects of the plan.
+
+### Improvement Trajectory
+
+- L01: 90% (learning the system)
+- L02: 100% (applied L01 lessons, clean sweep)
+- L03: 97% (still catching defer subtleties)
+- L04: 97% (comptime return types = new challenge)
+- L05: 99% (only minor issues)
+- L06: 99.5% (near-perfect, concurrency patterns well understood)
+
+The trajectory shows clear improvement. After L02 (100%), scores never dropped below 97%, and the most recent two lessons achieved 99%+ despite increasing difficulty.
+
+### Knowledge Gaps Remaining
+
+1. **io_uring / async I/O**: Not covered in this plan. Would benefit from an applied lesson.
+2. **Build system**: `build.zig` patterns not exercised beyond what's documented in SKILL.md.
+3. **C interop**: Only covered in reference material, not exercised.
+4. **File I/O and networking**: Covered in systems-reference but not tested with exercises.
+
+### Skill KB Contributions
+
+The plan produced the following SKILL.md additions:
+- defer/errdefer LIFO interleaving rule and timing constraint
+- Comptime string/array return type pattern (`*const [N]u8`)
+- VTable function signatures and delegation pattern
+- StackFallbackAllocator, FailingAllocator, checkAllAllocationFailures entries
+- mem.sliceTo sentinel requirement
+- Parameter shadowing note
+- Concurrency primitives table (Thread, Mutex, Condition, RwLock, Semaphore, WaitGroup, ResetEvent, Thread.Pool)
+- Atomics reference (fetchAdd OLD value, cmpxchg semantics, memory ordering)

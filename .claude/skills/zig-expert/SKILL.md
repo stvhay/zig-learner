@@ -170,6 +170,25 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Fixed string→value (O(1)) | `StaticStringMap` |
 | O(1) insert/remove, stable ptrs | `DoublyLinkedList` (intrusive) |
 
+**Concurrency primitives** (all use `.{}` static init — no `.init()` function):
+| Primitive | Init | Key API |
+|-----------|------|---------|
+| `Thread` | `try Thread.spawn(.{}, fn, .{args})` | `.join()` or `.detach()` — handle must be consumed |
+| `Mutex` | `.{}` | `.lock()` / `.unlock()` with `defer` |
+| `Condition` | `.{}` | `.wait(&mutex)` in **while loop** (spurious wakeups), `.signal()`, `.broadcast()` |
+| `RwLock` | `.{}` | `.lockShared()`/`.unlockShared()` (readers), `.lock()`/`.unlock()` (writer) |
+| `Semaphore` | `.{ .permits = N }` | `.wait()` (decrement), `.post()` (increment) |
+| `WaitGroup` | `.{}` | `.start()` before spawn, `.finish()` in worker via defer, `.wait()` |
+| `ResetEvent` | `.{}` | `.set()` / `.wait()` — never `.reset()` while threads wait |
+| `Thread.Pool` | `pool.init(.{ .allocator, .n_jobs })` | `try pool.spawn(fn, args)` — returns error union! |
+
+**Atomics** (`std.atomic.Value(T)`):
+- `fetchAdd`/`fetchSub`/`fetchOr`/`fetchAnd`/`fetchXor`/`swap` — all return **OLD** value
+- `cmpxchgStrong(expected, new, succ_ord, fail_ord)` → `?T` (`null` = success, value = actual on failure)
+- `cmpxchgWeak` — may spuriously fail, **must** be in retry loop
+- Memory ordering: `.release` on store pairs with `.acquire` on load for happens-before
+- `Thread.Pool.spawn` returns error union — must use `try`; pool does NOT call `wg.finish()` for you
+
 ## Zig-Specific Style
 
 Rules where Zig idiom diverges from other languages:
