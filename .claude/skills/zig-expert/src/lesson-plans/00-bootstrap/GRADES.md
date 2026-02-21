@@ -1085,3 +1085,4 @@ All 6 tests pass.
 - Estimated total tokens consumed: ~90,000 (input + output)
 - Number of tool calls: ~40
 - Tokens per exercise: ~7,500
+- Actual (Task tool): 128,624 tokens, 75 tool calls
