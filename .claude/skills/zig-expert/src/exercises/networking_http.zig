@@ -8,6 +8,7 @@
 // 5. Path traversal detection (pre-filesystem check)
 // 6. HTTP date formatting with EpochSeconds
 // 7. Thread-safe logging with Mutex + atomic write
+// 8. TCP stream read loop — handle partial reads in test helpers
 
 const std = @import("std");
 const mem = std.mem;
@@ -167,4 +168,62 @@ test "ip extraction from net.Address" {
     try testing.expectEqual(@as(u8, 0), b);
     try testing.expectEqual(@as(u8, 0), c);
     try testing.expectEqual(@as(u8, 1), d);
+}
+
+// Pattern 8: TCP stream read loop — stream.read() may return partial data
+// GOTCHA: A single read() on a TCP stream can return fewer bytes than the sender wrote.
+// For protocol-framed data (RESP, HTTP, etc.), the test helper must loop until a
+// complete message is received. Without this, tests pass locally but fail under load
+// or on CI where TCP segments fragment differently.
+//
+// Key: accumulate into buffer, check completeness after each read, time out if stuck.
+// Key: std.Thread.sleep(ns) for delays — NOT std.time.sleep (does not exist in 0.15.2).
+fn readFullResponse(stream: net.Stream, buf: []u8, timeout_ms: u64) ![]const u8 {
+    var total: usize = 0;
+    const deadline = @as(u64, @intCast(std.time.milliTimestamp())) + timeout_ms;
+    while (total < buf.len) {
+        const n = stream.read(buf[total..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                if (@as(u64, @intCast(std.time.milliTimestamp())) >= deadline)
+                    return error.Timeout;
+                std.Thread.sleep(1_000_000); // 1ms
+                continue;
+            },
+            else => return err,
+        };
+        if (n == 0) break; // peer closed
+        total += n;
+        // Check if response is complete (example: RESP simple string ends with \r\n)
+        if (total >= 2 and buf[total - 2] == '\r' and buf[total - 1] == '\n')
+            break;
+    }
+    return buf[0..total];
+}
+
+test "tcp read loop handles partial data" {
+    const addr = net.Address.parseIp4("127.0.0.1", 0) catch unreachable;
+    var server = try addr.listen(.{ .reuse_address = true });
+    defer server.deinit();
+    const port = server.listen_address.getPort();
+
+    // Server thread: write response in two parts to simulate fragmentation
+    const t = try std.Thread.spawn(.{}, struct {
+        fn run(s: *net.Server) void {
+            const conn = s.accept() catch return;
+            defer conn.stream.close();
+            conn.stream.writeAll("+PO") catch return;
+            std.Thread.sleep(5_000_000); // 5ms gap between fragments
+            conn.stream.writeAll("NG\r\n") catch return;
+        }
+    }.run, .{&server});
+    defer t.join();
+
+    const client = try net.tcpConnectToAddress(
+        net.Address.parseIp4("127.0.0.1", port) catch unreachable,
+    );
+    defer client.close();
+
+    var buf: [64]u8 = undefined;
+    const resp = try readFullResponse(client, &buf, 5000);
+    try testing.expectEqualStrings("+PONG\r\n", resp);
 }

@@ -2038,3 +2038,215 @@ Total compile failures: 1
 | Phase 2 (Q5-Q8) | 18 | $2.57 |
 | Phase 3 (Q9-Q12) | 17 | $2.84 |
 | **Total** | **61** | **$7.49** |
+
+---
+
+# Lesson 12: Redis Server (Applied) -- Grades
+
+## Phase 1 (Q1--Q4)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 1  | RESP Serializer/Deserializer | 5 | 4 | -1 (1 compile fail: wrong expected value in test) | B (80%) |
+| 2  | TCP Server PING/ECHO | 5 | 4 | -1 (1 compile fail: std.time.sleep not in 0.15.2) | B (80%) |
+| 3  | SET/GET with HashMap | 5 | 5 | 0 | A (100%) |
+| 4  | Concurrent Client Handling | 5 | 5 | 0 | A (100%) |
+| **Total** | **Phase 1** | **20** | **18** | **-2** | **A (90%)** |
+
+### Detailed Notes
+
+**Q1: RESP Serializer and Deserializer (4/5)**
+- Solution: `artifacts/lesson-12/q1_resp_codec.zig`
+- All 5 RESP types implemented: simple string, error, integer, bulk string, array
+- Null variants handled for bulk string ($-1) and array (*-1)
+- Compile failure #1: Test for "-ERR unknown\r\n" expected bytes_consumed=15, actual=14. Counting error in test assertion. New mistake, -1 pt.
+- After fix: all 19 tests pass on first run.
+- Code quality: A. Clean tagged union, separate parse/write functions, comprehensive test coverage.
+
+**Q2: TCP Server PING/ECHO (4/5)**
+- Solution: Part of `artifacts/lesson-12/q4_concurrent_server.zig` (Q2-Q4 combined)
+- Compile failure #1: Used `std.time.sleep()` which does not exist in 0.15.2; correct API is `std.Thread.sleep()`. New mistake (not in skill KB), -1 pt.
+- Supports both RESP-framed and inline commands
+- Case-insensitive command matching via `std.ascii.eqlIgnoreCase`
+- Graceful disconnect handling (read returning 0 bytes)
+- All PING/ECHO tests pass.
+- Code quality: A.
+
+**Q3: SET and GET with HashMap Storage (5/5)**
+- Solution: Part of `artifacts/lesson-12/q4_concurrent_server.zig`
+- 0 compile failures.
+- StringHashMap with proper memory ownership: keys and values duped on store, old values freed on overwrite.
+- GET returns null bulk string for missing keys.
+- All SET/GET tests pass.
+- Code quality: A.
+
+**Q4: Concurrent Client Handling (5/5)**
+- Solution: `artifacts/lesson-12/q4_concurrent_server.zig`
+- 0 compile failures.
+- Each client handled in a spawned+detached thread.
+- Shared Store protected by `std.Thread.Mutex`.
+- Persistent connections: clients can send multiple commands without reconnecting.
+- Clean disconnect handling without server crash.
+- Two concurrent clients verified: client 2 sees client 1's data and vice versa.
+- All concurrency tests pass.
+- Code quality: A.
+
+## Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|---------------|
+| Q1 | 1 | Test expected 15, actual 14 | Miscounted bytes in "-ERR unknown\r\n" | No |
+| Q2 | 1 | std.time.sleep not found | 0.15.2 uses std.Thread.sleep, not std.time.sleep | No |
+
+Total compile failures: 2
+- New mistakes: 2 (cost: -1 pt each)
+- Known pitfall violations: 0
+
+## Phase 2 (Q5--Q8)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 5  | Key Expiration (EX, PX) | 5 | 5 | 0 | A (100%) |
+| 6  | EXISTS, DEL, INCR/DECR | 5 | 5 | 0 | A (100%) |
+| 7  | List Operations | 5 | 5 | 0 | A (100%) |
+| 8  | TTL, PTTL, PERSIST | 5 | 5 | 0 | A (100%) |
+| **Total** | **Phase 2** | **20** | **20** | **0** | **A (100%)** |
+
+### Detailed Notes
+
+**Q5: Key Expiration (5/5)**
+- Solution: `artifacts/lesson-12/q5_expiration.zig`
+- 0 compile failures.
+- Extended Store to use `StoreEntry` with `expiry_ms: ?i64` field (absolute ms timestamp).
+- SET parses EX/PX options case-insensitively, computes absolute expiry via `std.time.milliTimestamp() + secs * 1000`.
+- GET performs lazy expiration: checks `milliTimestamp() >= expiry` and removes expired keys before returning nil.
+- SET without EX/PX sets `expiry_ms = null`, effectively removing any previous expiry.
+- SET with EX/PX on existing key replaces both value and expiry.
+- 3 tests: EX expiry, PX expiry, expiry removal. All pass.
+- Code quality: A. Clean separation of store logic and command parsing.
+
+**Q6: EXISTS, DEL, INCR/DECR (5/5)**
+- Solution: `artifacts/lesson-12/q6_exists_del_incr.zig`
+- 0 compile failures.
+- EXISTS: iterates all key args, counts how many exist (respects expiry). Same key listed twice counts twice.
+- DEL: iterates all key args, removes and frees each. Returns count of actually deleted.
+- INCR/DECR/INCRBY/DECRBY: implemented via shared `incrByUnlocked` with delta parameter. Non-existent key treated as 0. Non-integer value returns `-ERR value is not an integer or out of range`.
+- Uses `std.fmt.parseInt(i64, ..., 10)` for parsing and `std.fmt.bufPrint` for formatting new value.
+- Proper memory management: old string value freed, new value duped.
+- 4 tests: EXISTS counting, DEL removal, INCR/DECR/INCRBY, DECRBY. All pass.
+- Code quality: A. Reuses store mutex correctly (caller locks, unlocked methods operate).
+
+**Q7: List Operations (5/5)**
+- Solution: `artifacts/lesson-12/q7_list_ops.zig`
+- 0 compile failures.
+- Introduced `Value` tagged union (`string` / `list`) to distinguish types.
+- `StoreEntry` now has `data: Value` instead of `value: []const u8`.
+- WRONGTYPE error returned when list command hits string key or vice versa.
+- LPUSH: `insert(allocator, 0, val)` for each value left-to-right (so `LPUSH k a b c` => `[c, b, a]`).
+- RPUSH: `append(allocator, val)` for each value.
+- LPOP: `orderedRemove(0)` returns first element. Empty list after pop triggers key deletion.
+- RPOP: `pop()` returns last element. Empty list after pop triggers key deletion.
+- LLEN: returns `items.len` or 0 for missing key.
+- LRANGE: resolves negative indices, clamps to valid range, returns slice of list items.
+- LPOP/RPOP: popped item freed after writing RESP response to stream.
+- 6 tests: RPUSH+LRANGE, LPUSH prepend, LPOP/RPOP, LRANGE partial, WRONGTYPE, LPOP nil. All pass.
+- Code quality: A. Proper value cleanup in all paths (freeValue handles both variants).
+
+**Q8: TTL, PTTL, PERSIST (5/5)**
+- Solution: `artifacts/lesson-12/q8_ttl_persist.zig`
+- 0 compile failures.
+- TTL: `@divTrunc(remaining_ms, 1000)` for integer truncation. Returns -1 (no expiry), -2 (key missing/expired).
+- PTTL: returns raw remaining milliseconds. Same -1/-2 sentinel values.
+- PERSIST: sets `expiry_ms = null` on entry. Returns 1 if expiry was removed, 0 if key missing or no expiry.
+- Expired keys lazily cleaned on access (TTL/PTTL/PERSIST all check expiry first).
+- 7 tests: TTL remaining, PTTL remaining, TTL -1 (no expiry), TTL -2 (missing), PERSIST removes expiry, PERSIST 0 for missing, PERSIST 0 for no-expiry. All pass.
+- Code quality: A. Clean TTL/PTTL/PERSIST implementation with proper lazy expiration.
+
+## Phase 2 Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|---------------|
+
+Total compile failures: 0
+- New mistakes: 0
+- Known pitfall violations: 0
+
+## Phase 3 (Q9--Q12)
+
+| Ex | Topic | Max | Earned | Deductions | Grade |
+|----|-------|-----|--------|------------|-------|
+| 9  | APPEND, STRLEN, NX/XX Flags | 5 | 5 | 0 | A (100%) |
+| 10 | RDB Persistence with SAVE | 5 | 4 | -1 (1 compile fail: missing delUnlocked method) | B (80%) |
+| 11 | CONFIG GET/SET and Glob | 5 | 5 | 0 | A (100%) |
+| 12 | Integration Test & Benchmark | 5 | 4 | -1 (1 test fail: TCP read fragmentation in test helper) | B (80%) |
+| **Total** | **Phase 3** | **20** | **18** | **-2** | **A (90%)** |
+
+### Detailed Notes
+
+**Q9: APPEND, STRLEN, NX/XX Flags (5/5)**
+- Solution: `artifacts/lesson-12/q9_append_strlen_nxxx.zig`
+- 0 compile failures.
+- APPEND: concatenates existing string value with new value using `alloc` + `@memcpy`. Creates key if missing (like SET). Returns new string length.
+- STRLEN: returns length of string at key, 0 if missing. WRONGTYPE on list keys.
+- SET NX/XX: added `setWithFlags` method. NX prevents set if key exists; XX prevents set if key doesn't exist. Returns bool indicating whether set was performed. On failure, returns `$-1\r\n` (null bulk string).
+- Options parsed in any order in the SET command loop (EX, PX, NX, XX can appear in any position).
+- 6 tests: APPEND existing, APPEND creates, STRLEN, SET NX, SET XX, NX+EX combined. All pass.
+- Code quality: A. Clean separation of flag logic in `setWithFlags`.
+
+**Q10: RDB Persistence with SAVE (4/5)**
+- Solution: `artifacts/lesson-12/q10_rdb_persistence.zig`
+- 1 compile failure: forgot to include `delUnlocked` method in the Store struct while having DEL command handler reference it. New mistake (-1 pt).
+- Binary format: "CCREDIS1" header, entries with type tag (0=string, 1=list), 4-byte LE length-prefixed key/value, expiry flag + 8-byte LE timestamp, "EOF" footer.
+- `save()`: iterates map under mutex, skips expired keys, writes all entries.
+- `load()`: reads file, validates header/footer, reconstructs entries. Skips expired keys during load. FileNotFound = fresh start.
+- Uses `std.mem.nativeToLittle(u32, len)` + `std.mem.toBytes()` for LE encoding, `std.mem.readInt(u32, ..., .little)` for decoding.
+- 4 tests: save+reload, expired keys skipped on load, nonexistent file, binary format header/footer. All pass.
+- Code quality: A. Proper error handling for all I/O paths.
+
+**Q11: CONFIG GET/SET and Glob (5/5)**
+- Solution: `artifacts/lesson-12/q11_config.zig`
+- 0 compile failures.
+- Config stored in a separate `Config` struct with its own `StringHashMap([]const u8)`.
+- Default config values: dir=".", dbfilename="dump.rdb", save="", appendonly="no".
+- CONFIG SET: updates or creates config entry with proper memory management (free old value on overwrite).
+- CONFIG GET: iterates config map, matches parameter names against glob pattern. Returns `*N\r\n` array with alternating name-value pairs.
+- Glob matching: supports exact match, `*` (match all), `prefix*`, `*suffix`, and `prefix*suffix` patterns. Implemented with `std.mem.indexOfScalar` to find `*` position, then prefix/suffix checking.
+- 6 tests: SET+GET dir, SET+GET dbfilename, glob `d*` matching, nonexistent returns empty, `*` returns all, glob unit tests. All pass.
+- Code quality: A. Clean glob implementation, proper memory ownership.
+
+**Q12: Integration Test & Benchmark (4/5)**
+- Solution: `artifacts/lesson-12/q12_integration.zig`
+- 0 compile failures.
+- 1 test failure on first run: TCP read fragmentation caused `sendAndRecv` to return partial RESP response for LRANGE (array header arrived in one TCP segment, elements in next). Fixed by making `sendAndRecv` loop until a complete RESP value can be parsed. Server logic was correct throughout. Deduction: -1 pt for needing a second test run.
+- Integration test covers the full command sequence from the quiz: PING, SET/GET, INCR (x2), GET counter, DEL, GET nil, RPUSH, LRANGE, LPOP, SET with EX, GET before/after expiry, SET NX (succeeds), SET NX (fails).
+- Benchmark: 10 concurrent clients, 1000 PINGs each. Achieved ~166k req/sec on test hardware.
+- All 17 byte-for-byte response comparisons pass.
+- Code quality: B+ (test helper needed fixing for TCP fragmentation).
+
+## Phase 3 Compile Failure Summary
+
+| Exercise | Attempt | Error | Root Cause | In Skill KB? |
+|----------|---------|-------|------------|---------------|
+| 10 | 1 | `no field or member function named 'delUnlocked'` | Forgot to include delUnlocked in Store | No (new mistake) |
+
+Total compile failures: 1
+- New mistakes: 1 (cost: -1 pt)
+- Known pitfall violations: 0
+
+## Consolidated Summary
+
+| Phase | Exercises | Max | Earned | Grade |
+|-------|-----------|-----|--------|-------|
+| 1     | Q1-Q4     | 20  | 18     | A (90%) |
+| 2     | Q5-Q8     | 20  | 20     | A (100%) |
+| 3     | Q9-Q12    | 20  | 18     | A (90%) |
+| **Total** | **Q1-Q12** | **60** | **56** | **A (93%)** |
+
+## Token Usage
+
+| Phase | Turns | Cost |
+|-------|-------|------|
+| Phase 1 (Q1-Q4) | 22 | $1.87 |
+| Phase 2 (Q5-Q8) | 18 | $2.59 |
+| Phase 3 (Q9-Q12) | 27 | $4.04 |
+| **Total** | **67** | **$8.50** |

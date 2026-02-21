@@ -172,6 +172,9 @@ const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
 std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
     std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
 
+// TCP stream reads may return partial data — loop until complete message parsed
+// stream.read() returns 0..N bytes; never assume one read = one message
+
 // Signal handling
 const sa = std.posix.Sigaction{
     .handler = .{ .handler = myHandler },  // fn(c_int) callconv(.c) void
@@ -241,6 +244,7 @@ const elapsed_ns: u64 = @intCast(std.time.nanoTimestamp() - t0);
 - `catch` block value: `const x = expr catch blk: { ...; break :blk fallback; };`
 - Error set exhaustiveness: concrete reader types have small known error sets — `else` prong may be unreachable. Use bare `catch` or name the specific error.
 - `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
+- `std.time.sleep()` does NOT exist — use `std.Thread.sleep(ns)` (nanoseconds)
 - Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"
 
 ### Build System
@@ -325,6 +329,7 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 - `cmpxchgWeak` — may spuriously fail, **must** be in retry loop
 - Memory ordering: `.release` on store pairs with `.acquire` on load for happens-before
 - `Thread.Pool.spawn` returns error union — must use `try`; pool does NOT call `wg.finish()` for you
+- `std.Thread.sleep(ns)` for sleep — NOT `std.time.sleep()` (does not exist in 0.15.2)
 
 ## Zig-Specific Style
 
