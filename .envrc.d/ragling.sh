@@ -16,6 +16,12 @@ mkdir -p "$PWD/rag"
 ln -sfn "$PWD/.claude/skills/zig-expert/references" "$PWD/rag/references"
 ln -sfn "$PWD/.claude/skills/zig-expert/src"        "$PWD/rag/src"
 
+# Populate curated Zig stdlib for RAG indexing (if not already present).
+if [[ ! -d "$PWD/rag/zig-stdlib/.git" ]]; then
+    echo "direnv: setting up Zig stdlib for RAG..."
+    "$PWD/.claude/scripts/setup-stdlib-rag.sh"
+fi
+
 # Ensure skill src/ is a git repo with at least one commit.
 # Ragling's GitRepoIndexer requires a valid HEAD.
 _zig_src="$PWD/.claude/skills/zig-expert/src"
