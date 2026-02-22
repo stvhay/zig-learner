@@ -321,6 +321,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
 - `std.time.sleep()` does NOT exist — use `std.Thread.sleep(ns)` (nanoseconds)
 - Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"
+- **Narrow arithmetic overflow:** `u8 * 100` stays `u8` — panics if result > 255. Widen first: `@as(u32, narrow_val) * 100`. Same for `+`, `-`, `<<`. Rule: cast to result width BEFORE the operation.
 - **Comptime branch elimination:** `const cond = true; if (cond) a else b` evaluates at comptime — dead branch is eliminated, no peer type resolution occurs. To test peer resolution, force runtime: `var cond = true; _ = &cond;`
 - **Peer type resolution for errors:** `T` and `error.Foo` resolve to `error{Foo}!T` (specific set), NOT `anyerror!T`. Only explicit annotation or `||` merging produces `anyerror`.
 

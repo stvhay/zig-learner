@@ -174,3 +174,80 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | 44.4% |
 | Efficiency score | 105 (capped from +54.4 raw) |
 | **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
+
+## Lesson 03: Error Handling & Allocator Patterns
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 1 (Ex 9: runtime integer overflow) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | Error sets — declaration and named error sets | 1 | 5 | 30 | A (+30) | — | 60 |
+| 2 | Error sets — anonymous (inferred) error sets | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | Error sets — merging with `\|\|` | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | Error sets — `@errorName` runtime introspection | 1 | 5 | 30 | A (+30) | — | 60 |
+| 5 | Error sets — `@intFromError` and numeric identity | 1 | 5 | 30 | A (+30) | — | 60 |
+| 6 | Error unions — basic `ErrorSet!T` and `try` | 1 | 5 | 30 | A (+30) | — | 60 |
+| 7 | Error unions — `catch` with fallback value | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | Error unions — `catch` with error payload | 1 | 5 | 30 | A (+30) | — | 60 |
+| 9 | Error unions — if-else error unwrap | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 10 | errdefer — basic cleanup on error path | 1 | 5 | 30 | A (+30) | — | 60 |
+| 11 | errdefer — ordering (LIFO relative to defer) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | errdefer — `\|err\|` capture in function scope | 1 | 5 | 30 | A (+30) | — | 60 |
+| 13 | Error handling in loops — break on error with cleanup | 1 | 5 | 30 | A (+30) | — | 60 |
+| 14 | Error handling in loops — partial initialization cleanup | 1 | 5 | 30 | A (+30) | — | 60 |
+| 15 | FixedBufferAllocator — stack-based allocation | 2 | 10 | 30 | A (+30) | — | 60 |
+| 16 | FixedBufferAllocator — reset for reuse | 2 | 10 | 30 | A (+30) | — | 60 |
+| 17 | ArenaAllocator — init, alloc, deinit, no frees needed | 2 | 10 | 30 | A (+30) | — | 60 |
+| 18 | ArenaAllocator — reset modes (retain/free_all) | 2 | 10 | 30 | A (+30) | — | 60 |
+| 19 | FailingAllocator — fail at specific index | 2 | 10 | 30 | A (+30) | — | 60 |
+| 20 | FailingAllocator — allocation stats tracking | 2 | 10 | 30 | A (+30) | — | 60 |
+| 21 | checkAllAllocationFailures — exhaustive OOM testing | 2 | 10 | 30 | A (+30) | — | 60 |
+| 22 | Error set merging in multi-layer functions | 2 | 10 | 30 | A (+30) | — | 60 |
+| 23 | StackFallbackAllocator — stack-first with heap fallback | 2 | 10 | 30 | A (+30) | — | 60 |
+| 24 | Custom allocator — VTable implementation | 3 | 20 | 30 | A (+30) | — | 60 |
+| 25 | Allocator composition — arena over fixed buffer + OOM | 3 | 20 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-8, 10-25: Perfect (60/60 each)**
+- All compiled and passed tests on first attempt
+- Code quality: clean, well-commented, demonstrates all required concepts
+- Key patterns demonstrated correctly:
+  - Named error sets with `@typeInfo`, `@errorName`, `@intFromError`
+  - Error unions with `try`, bare `catch`, `catch |err|`, if-else unwrap
+  - `errdefer` basic, LIFO ordering with `defer`, `|err|` capture in function scope
+  - Partial initialization cleanup with tracked count
+  - All allocator types: FixedBufferAllocator, ArenaAllocator, FailingAllocator, StackFallbackAllocator
+  - Custom VTable allocator with 4 function pointers
+  - `checkAllAllocationFailures` with extra args tuple
+
+**Exercise 9: 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** Runtime integer overflow in `findValue` — `key * 100` with `key: u8` overflowed when key=5 (500 > 255). Fixed by widening to `@as(u32, key) * 100`.
+- Lesson: Always widen narrow integer types before arithmetic that may exceed their range. `u8 * u8` stays `u8` and panics on overflow.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| 9 | 1 | -5 | New | u8 integer overflow in multiplication (5*100 > 255) |
+
+**Total correctness deductions:** -5 (on exercise 9)
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $3.24 (23 turns) |
+| Run 1 baseline | $4.57 (49 turns) |
+| Cost reduction | 29.1% |
+| Efficiency score | +39.1 |
+| **Lesson score** | **4.95/5 pts** (Level 0, 5 pt pool) |
