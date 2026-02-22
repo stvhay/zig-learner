@@ -525,3 +525,61 @@ No compile failures.
 | Context replay | $1.22 |
 | Cache write | $0.80 |
 | Output | $0.31 |
+
+---
+
+## Lesson 07: Hex Dump (Level 1, 15 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | Basic Hex Dump | 30 | A (+30) | +20 | 0 | 80 |
+| 2 | Binary File / Non-Printable | 30 | A (+30) | +20 | 0 | 80 |
+| 3 | Grouping (-g) | 30 | A (+30) | +20 | 0 | 80 |
+| 4 | Columns (-c) + Length (-l) | 30 | A (+30) | +20 | 0 | 80 |
+| 5 | Seeking (-s) | 30 | A (+30) | +20 | 0 | 80 |
+| 6 | Stdin Support | 30 | A (+30) | +20 | 0 | 80 |
+| 7 | Plain Hex Mode (-p) | 30 | A (+30) | +20 | 0 | 80 |
+| 8 | Uppercase Mode (-u) | 30 | A (+30) | +20 | 0 | 80 |
+| 9 | Little-Endian (-e) | 30 | A (+30) | +20 | 0 | 80 |
+| 10 | C Include Mode (-i) | 30 | A (+30) | +20 | 0 | 80 |
+| 11 | Reverse Mode (-r) | 30 | A (+30) | +20 | 0 | 80 |
+| 12 | Reverse Plain (-r -p) + Binary (-b) | 30 | A (+30) | +20 | 0 | 80 |
+
+**Average exercise score:** 80.00 / 80
+
+**Lesson score:** (80.00 / 80) × 15 = **15.00 / 15 pts**
+
+### Compile Failure Log
+
+No compile failures across all 12 exercises (both phases).
+
+### Reflection
+
+**Zero compile failures** — Perfect execution across all 12 exercises in both phases. The proactive architecture strategy (implementing all 12 features in Phase 1) meant Phase 2 required zero code changes, only validation via `diff` against system `xxd`.
+
+**Key patterns validated:**
+- Buffered I/O with `std.fs.File.stdout().writer(&buf)` + flush on `.interface`
+- Format specifiers: `{x:0>2}`, `{X:0>2}`, `{b:0>8}` for hex/binary output
+- `std.fmt.parseInt(u64, str, 0)` for auto-detecting hex prefix in CLI args
+- Unified stdin/file handling via `openInput()` abstraction
+- `seekTo()` for files, `skipBytes()` for stdin seeking
+- CLI argument parsing with `std.process.argsAlloc`
+
+**Skill coverage:** All patterns used were already documented in SKILL.md (I/O section) or RAG references (`file_io_cli.zig` snippet, stdlib API extracts). No new gaps discovered.
+
+**No SKILL.md updates needed** — The existing skill content was fully sufficient for a zero-failure result.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Total turns | 26 |
+| Phase 1 cost | $1.159 (14 turns) |
+| Phase 2 cost | $0.706 (12 turns) |
+| Total cost | $1.865 |
+| Baseline (Run 1) | $3.44 (47 turns) |
+| Cost reduction | +45.8% |
+| Efficiency score | +20 (capped) |
