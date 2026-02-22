@@ -270,3 +270,77 @@ test "fieldsMatch: comptime struct layout comparison" {
     try testing.expect(comptime fieldsMatch(A, B));
     try testing.expect(comptime !fieldsMatch(A, C));
 }
+
+// ---------------------------------------------------------------------------
+// 11. Comptime string return — *const [N]u8 pattern
+//
+// Functions with comptime params that build strings CANNOT return []const u8.
+// "function called at runtime cannot return value at comptime".
+// Return *const [N]u8 where N is comptime-known via a helper function.
+// ---------------------------------------------------------------------------
+
+fn comptimeJoinLen(comptime parts: []const []const u8, comptime sep: []const u8) usize {
+    var len: usize = 0;
+    for (parts, 0..) |part, i| {
+        if (i > 0) len += sep.len;
+        len += part.len;
+    }
+    return len;
+}
+
+fn comptimeJoin(comptime parts: []const []const u8, comptime sep: []const u8) *const [comptimeJoinLen(parts, sep)]u8 {
+    // Must use `comptime` block + break pattern for the array construction.
+    // NOTE: Call comptimeJoinLen() directly for the array size — a local
+    // `const len = ...` is NOT recognized as comptime-known inside the block.
+    const result = comptime blk: {
+        var buf: [comptimeJoinLen(parts, sep)]u8 = undefined;
+        var pos: usize = 0;
+        for (parts, 0..) |part, i| {
+            if (i > 0) {
+                for (sep) |c| {
+                    buf[pos] = c;
+                    pos += 1;
+                }
+            }
+            for (part) |c| {
+                buf[pos] = c;
+                pos += 1;
+            }
+        }
+        break :blk buf;
+    };
+    return &result;
+}
+
+test "comptime string return: *const [N]u8 join pattern" {
+    // comptimeJoin returns *const [N]u8, which coerces to []const u8
+    const joined: []const u8 = comptimeJoin(&.{ "hello", "world", "zig" }, ", ");
+    try testing.expectEqualStrings("hello, world, zig", joined);
+
+    // Can also use at module level (no `comptime` keyword needed for module-level const!)
+    const module_level = comptimeJoin(&.{ "a", "b" }, "-");
+    try testing.expectEqualStrings("a-b", module_level);
+}
+
+// ---------------------------------------------------------------------------
+// 12. Module-level comptime lookup table — NO `comptime` keyword
+//
+// Module-level `const` is ALREADY comptime. Adding `comptime blk:` is a
+// compile error. Use plain labeled blocks instead.
+// ---------------------------------------------------------------------------
+
+const squares = blk: {
+    // CORRECT: plain `blk:` label, no `comptime` keyword
+    var table: [16]u32 = undefined;
+    for (0..16) |i| {
+        table[i] = @as(u32, @intCast(i)) * @as(u32, @intCast(i));
+    }
+    break :blk table;
+};
+
+test "module-level lookup table: no comptime keyword" {
+    try testing.expectEqual(@as(u32, 0), squares[0]);
+    try testing.expectEqual(@as(u32, 1), squares[1]);
+    try testing.expectEqual(@as(u32, 9), squares[3]);
+    try testing.expectEqual(@as(u32, 225), squares[15]);
+}

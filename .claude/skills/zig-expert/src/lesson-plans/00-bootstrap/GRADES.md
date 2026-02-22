@@ -251,3 +251,105 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | 29.1% |
 | Efficiency score | +39.1 |
 | **Lesson score** | **4.95/5 pts** (Level 0, 5 pt pool) |
+
+## Lesson 04: Comptime & Metaprogramming
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 6 (Ex 15: 2, Ex 16: 1, Ex 17: 1, Ex 21: 1, Ex 25: 1) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency (56.6) | Score |
+|---|-------|------|-----|-------------------|---------|-------------------|-------|
+| 1 | comptime var in blocks -- loop accumulator | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 2 | comptime function parameters -- type as first-class value | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 3 | comptime function evaluation -- recursive factorial | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 4 | @typeInfo on integers and floats -- bits, signedness | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 5 | @typeInfo on structs -- field details, defaults, quoted identifiers | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 6 | @typeInfo on enums, unions, optionals, pointers, arrays, error sets | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 7 | @Type to generate struct types at comptime | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 8 | @Type to generate enum types at comptime | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 9 | @typeName for type identity strings | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 10 | std.meta -- fields, fieldNames, FieldEnum | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 11 | std.meta -- stringToEnum, activeTag | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 12 | std.meta -- hasFn, eql, Tag | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 13 | comptime string concatenation with ++ and ** | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 14 | std.fmt.comptimePrint for compile-time formatting | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 15 | comptime string building -- join and reverse | 2 | 10 | 15 (-10 -5) | A (+30) | +56.6 | 101.6 |
+| 16 | comptime lookup tables -- base64 encode/decode pair | 2 | 10 | 20 (-10) | A (+30) | +56.6 | 105 |
+| 17 | comptime lookup tables -- precomputed squares | 1 | 5 | 20 (-10) | A (+30) | +56.6 | 105 |
+| 18 | inline for over types -- multi-type testing | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 19 | inline for over struct fields -- generic field iteration | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 20 | @compileError for static assertions and validation | 1 | 5 | 30 | A (+30) | +56.6 | 105 |
+| 21 | @hasDecl and @hasField for feature detection | 1 | 5 | 20 (-10) | A (+30) | +56.6 | 105 |
+| 22 | builder pattern -- chaining field assignments at comptime | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 23 | custom format function -- {f} specifier (2-param) | 2 | 10 | 30 | A (+30) | +56.6 | 105 |
+| 24 | full type transformation -- Nullable<T> via @Type | 3 | 20 | 30 | A (+30) | +56.6 | 105 |
+| 25 | comptime state machine with generated enum and dispatch | 3 | 20 | 20 (-10) | A (+30) | +56.6 | 105 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-14, 18-20, 22-24: Perfect (60/60 each)**
+- All compiled and passed tests on first attempt
+- Code quality: clean, well-commented, demonstrates all required concepts
+- Key patterns demonstrated correctly:
+  - Comptime blocks with `var` and labeled `break`
+  - Type-as-first-class-value with `comptime T: type`
+  - Recursive comptime function evaluation
+  - `@typeInfo` with quoted identifiers (.@"struct", .@"enum")
+  - `@Type` for struct and enum generation with proper StructField/EnumField
+  - `@typeName` for type identity
+  - `std.meta` utilities: fields, fieldNames, FieldEnum, stringToEnum, activeTag, hasFn, eql, Tag
+  - String concatenation `++` and repetition `**`
+  - `std.fmt.comptimePrint` with format specifiers
+  - `inline for` over types and struct fields
+  - `@compileError` for static assertions
+  - `@hasDecl` and `@hasField` for feature detection
+  - Builder pattern with `@field` and `@FieldType`
+  - Custom format with 2-param signature and `{f}` specifier
+  - Full type transformation with NullableFields
+
+**Exercise 15: 45/60 (-15 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** Used `return &final` from within a `comptime {}` block inside a function with comptime params. SKILL.md documents: "Returning `[]const u8` from a comptime block inside such a function fails with 'function called at runtime cannot return value at comptime'." Fixed by using `const result = comptime blk: { ... break :blk &final; }; return result;` pattern.
+- **Compile failure 2 (-5, new mistake):** Used a local `const total_len = ...` as array size inside `comptime blk:` — the variable was not recognized as comptime-known within the block scope. Fixed by calling the length function directly inside the comptime block.
+
+**Exercise 16: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** Used `comptime blk:` for module-level `const` initialization. SKILL.md documents: "Module-level `const` is already comptime — don't add `comptime` keyword." Fixed by removing `comptime` and using plain `blk:`.
+
+**Exercise 17: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** Same redundant `comptime` keyword on module-level `const` as ex16. Fixed by using plain `blk:`.
+
+**Exercise 21: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** `describeType` function returned `[]const u8` from a function with comptime params — "function called at runtime cannot return value at comptime." SKILL.md documents this pattern. Fixed by returning `*const [N]u8` using a helper length function.
+
+**Exercise 25: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** Used `comptime blk:` for a `const` inside a returned struct type. SKILL.md documents: "omit redundant `comptime` keyword since struct-level `const` is already comptime." Fixed by removing `comptime` keyword.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| 15 | 2 | -15 | 1 repeated, 1 new | comptime return pattern; variable not comptime-known in block |
+| 16 | 1 | -10 | Repeated | redundant `comptime` on module-level const |
+| 17 | 1 | -10 | Repeated | redundant `comptime` on module-level const |
+| 21 | 1 | -10 | Repeated | comptime return from runtime-callable function |
+| 25 | 1 | -10 | Repeated | redundant `comptime` inside struct-level const |
+
+**Total correctness deductions:** -55 across 5 exercises (5 repeated mistakes, 1 new mistake)
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $2.11 (21 turns) |
+| Run 1 baseline | $3.95 (56 turns) |
+| Cost reduction | 46.6% |
+| Efficiency score | 56.6 (raw: 40 + 16.6) |
+| Avg exercise score | 100.66 |
+| **Lesson score** | **5.03/5 pts** (Level 0, 5 pt pool) |

@@ -324,6 +324,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - **Narrow arithmetic overflow:** `u8 * 100` stays `u8` — panics if result > 255. Widen first: `@as(u32, narrow_val) * 100`. Same for `+`, `-`, `<<`. Rule: cast to result width BEFORE the operation.
 - **Comptime branch elimination:** `const cond = true; if (cond) a else b` evaluates at comptime — dead branch is eliminated, no peer type resolution occurs. To test peer resolution, force runtime: `var cond = true; _ = &cond;`
 - **Peer type resolution for errors:** `T` and `error.Foo` resolve to `error{Foo}!T` (specific set), NOT `anyerror!T`. Only explicit annotation or `||` merging produces `anyerror`.
+- **Redundant `comptime` keyword:** Module-level `const` and struct-level `const` are already comptime. Writing `const x = comptime blk: { ... }` at these scopes is a compile error. Use plain labeled blocks: `const x = blk: { ... break :blk val; };`
 
 ### Build System
 
@@ -372,7 +373,15 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Config validation | `@compileError` for invalid params |
 | Dynamic data / user input | Runtime |
 
-**Comptime string/array returns:** Functions with comptime params that build strings/arrays must return `*const [N]u8` where N is comptime-known (use a helper `fn` to compute length). Returning `[]const u8` from a comptime block inside such a function fails with "function called at runtime cannot return value at comptime". Use `comptime var` + `inline for` to fill the buffer. Variables used in comptime loops inside these functions need `comptime var` (not plain `var`) and `inline for` (not plain `for`). Same pattern applies to `const` decls inside returned struct types — omit redundant `comptime` keyword since struct-level `const` is already comptime.
+**Comptime checklist** (5 repeated failures in Lesson 04 — scan EVERY time you write comptime code):
+
+| Rule | Error if violated | Fix |
+|------|-------------------|-----|
+| **No `comptime` on module-level `const`** | `const` at module scope is already comptime — adding `comptime blk:` = compile error | Use plain `blk:` label (no `comptime` keyword) |
+| **No `comptime` on struct-level `const`** | Same: `const` inside a returned `struct` type is already comptime | Use plain `blk:` label |
+| **Return `*const [N]u8`, not `[]const u8`** | "function called at runtime cannot return value at comptime" | Helper `fn` computes N; return pointer to comptime array |
+| **Use `comptime var` + `inline for`** | Plain `var`/`for` don't work in comptime array construction | Both keywords required |
+| **Compute lengths inline in comptime blocks** | Local `const len = f()` outside block not recognized as comptime-known inside `comptime blk:` | Call length function directly where needed, or assign inside the comptime block |
 
 **Data structure:**
 | Need | Use |
