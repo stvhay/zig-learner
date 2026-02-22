@@ -151,6 +151,11 @@ const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
 // Little-endian binary I/O
 try f.writeAll(&std.mem.toBytes(@as(u32, value)));
 const v = std.mem.readInt(u32, buf[0..4], .little);
+
+// In-place file editing: write temp, preserve permissions, atomic rename
+const stat = try orig_file.stat();
+std.posix.fchmod(tmp_file.handle, stat.mode) catch {};
+try std.fs.cwd().rename("file.tmp", "file.txt");  // atomic replace
 ```
 
 ### Networking
@@ -320,6 +325,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - `catch` block value: `const x = expr catch blk: { ...; break :blk fallback; };`
 - Error set exhaustiveness: concrete reader types have small known error sets — `else` prong may be unreachable. Use bare `catch` or name the specific error.
 - **Comptime format strings:** `print("{X:0>2}", .{val})` vs `print("{x:0>2}", .{val})` — format specifiers must be comptime-known. To switch case at runtime, use `if (upper) print("{X:0>2}", .{v}) else print("{x:0>2}", .{v})`. Cannot build format string dynamically.
+- **flush() on Writer interface, not struct:** `var w = File.stdout().writer(&buf);` creates a `File.Writer` struct. Call `flush()` on `&w.interface` (the `std.io.Writer` vtable interface), NOT on `w` directly. `w.flush()` does not exist — it's a method on the interface type.
 - `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
 - `std.time.sleep()` does NOT exist — use `std.Thread.sleep(ns)` (nanoseconds)
 - Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"

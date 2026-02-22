@@ -1005,3 +1005,252 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | -36.4% (INCREASE) |
 | Efficiency score | 0 (clamped from -26.4) |
 | **Lesson score** | **8.88/15 pts** (Level 1, 15 pt pool) |
+
+## Lesson 09: Stream Editor (Phase 1 — Q1–Q4)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q1–Q4) |
+| Phase | 1 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (flush on File.Writer instead of Writer interface) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | Line-by-line reader/printer | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 2 | Basic substitution s/old/new/ with g flag | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | Line number addressing and -n flag | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | Regex pattern matching in addresses | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 1 (Q1): 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** Called `stderr_w.flush()` on the `File.Writer` struct instead of `stderr.flush()` on the `Writer` interface (`&writer.interface`). In 0.15.2, `flush()` is a method on `std.io.Writer` (the vtable interface), not on `fs.File.Writer`. Fixed by restructuring to call `stdout.flush()` and `stderr.flush()` on the interface references.
+- After fix: compiled and ran correctly. Output identical to `cat test.txt` for all 10 lines. Stdin reading works. Nonexistent file produces error to stderr and exits with code 1.
+- Architecture: buffered stdout/stderr via `File.stdout().writer(&buf)` + `&w.interface`, GPA allocator, `argsWithAllocator` for CLI parsing, `deprecatedReader` + `readUntilDelimiterOrEof` for line reading.
+- Arg disambiguation: single non-option arg checked against filesystem first (isExistingFile); if not found, checked against sed command pattern; otherwise treated as filename to produce proper error.
+
+**Exercise 2 (Q2): 60/60 (perfect)**
+- No compile failures. All 4 validation tests pass:
+  - `s/"//g` removes all quotes from test.txt (matches sed output)
+  - `s/busy/BUSY/` replaces first occurrence per line
+  - `s/busy/BUSY/g` replaces all occurrences per line
+  - `s|life|LIFE|g` pipe delimiter works identically to sed
+- Implementation: `substituteFirst` uses `mem.indexOf` for first match, `substituteAll` loops with `mem.indexOf` for global. Custom delimiter parsed from first char after 's'. Empty replacement handled (deletion).
+
+**Exercise 3 (Q3): 60/60 (perfect)**
+- No compile failures. All 4 validation tests pass:
+  - `-n '2,4p'` prints only lines 2-4
+  - `-n '1p'` prints only line 1
+  - `-n '$p'` prints only last line (uses two-pass: first pass counts lines)
+  - `'3p'` without -n prints all lines with line 3 doubled
+- Address types: `single_line`, `last_line`, `line_range`, `line_range_end_last`.
+- Two-pass approach for `$` address: first pass counts total lines by reading the file with `deprecatedReader`, then reopens for processing.
+
+**Exercise 4 (Q4): 60/60 (perfect)**
+- No compile failures. All 4 validation tests pass:
+  - `-n '/roads/p'` prints line containing "roads"
+  - `-n '/^Life/p'` prints line starting with "Life"
+  - `-n '/\.$/p'` prints lines ending with period (all 10 lines match sed)
+  - `'/^$/d'` removes blank lines from mixed.txt (matches sed)
+- Regex engine: recursive backtracking matcher supporting `.` (any char), `*` (zero or more), `^` (start anchor), `$` (end anchor), `[...]` (character class with ranges), `[^...]` (negated class), `\` (escape). Non-anchored patterns try matching at every position.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q1 | 1 | -5 | New | Called flush() on File.Writer instead of Writer interface |
+
+**Total correctness deductions:** -5 (on Q1)
+
+## Lesson 09: Stream Editor (Phase 2 — Q5–Q8)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q5–Q8) |
+| Phase | 2 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (regexSubstituteAll only tried matching at exact search_pos, not scanning forward) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 5 | Regex in substitution — &, \1-\9, +, ? | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 6 | Delete (d) and quit (q) commands | 1 | 5 | 30 | A (+30) | — | 60 |
+| 7 | G (append hold), = (line number), y (transliterate) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | a\text (append), i\text (insert), c\text (change) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 5 (Q5): 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** In `regexSubstituteAll`, called `findMatchEnd(regex, line, search_pos)` which only tries matching at the exact position, not scanning forward from `search_pos`. This caused global substitution to miss matches that didn't start exactly at the current search position. Fixed by adding a forward-scanning loop within `regexSubstituteAll` that tries all positions from `search_pos` onward until a match is found.
+- After fix: all 4 validation tests pass:
+  - `s/[Ll]ife/[&]/g` wraps "life" and "Life" in brackets (matches sed)
+  - `-n 's/^[^ ]* \([A-Z]*\).*/\1/p'` extracts log levels (matches sed)
+  - `s/  */ /g` compresses multiple spaces to single space (matches sed)
+  - `s/\([^ ]*\) \([^ ]*\)/\2 \1/` swaps first two words (matches sed)
+- Regex engine extended with: `+` (one or more), `?` (zero or one) quantifiers, `\(...\)` capture groups, `\1`-`\9` backreferences, `&` in replacement for whole match.
+- Fully recursive matcher (`matchRecEnd`) passes group state through call stack with open-group stack for proper nesting.
+
+**Exercise 6 (Q6): 60/60 (perfect)**
+- No compile failures. All 4 validation tests pass:
+  - `'3,5d'` deletes lines 3-5 from unquoted.txt (7 lines output, matches sed)
+  - `'/ERROR/d'` deletes ERROR lines from log.txt (11 lines output, matches sed)
+  - `'3q'` prints lines 1-3 then quits (matches sed)
+  - `'/fear/q'` prints lines 1-7 then quits at "fear" line (matches sed)
+- `d` command: when address matches, skips all output for line; otherwise prints normally.
+- `q` command: when address matches, prints current line (unless -n), flushes, and exits with code 0.
+
+**Exercise 7 (Q7): 60/60 (perfect)**
+- No compile failures. All 3 validation tests pass:
+  - `G` double-spaces the file (appends newline + empty hold space, producing blank line after each line, matches sed)
+  - `=` prints line number before each line (matches sed)
+  - `y/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm/` performs ROT13 (matches sed)
+- Transliterate implementation: builds 256-entry lookup table from src/dst, applies per-character.
+- `G` appends "\n" to output (since hold space is empty), producing double-spacing effect.
+- `=` always prints line number (regardless of address) followed by the line (if not suppressed).
+
+**Exercise 8 (Q8): 60/60 (perfect)**
+- No compile failures. All 4 validation tests pass:
+  - `'1i\=== QUOTES ==='` inserts header before line 1 (matches sed)
+  - `'$a\=== END ==='` appends footer after last line (matches sed)
+  - `'5c\[REDACTED]'` replaces line 5 with custom text (matches sed)
+  - `'/ERROR/a\---'` appends "---" after each ERROR line (matches sed)
+- `a\text`: outputs text after the current line when address matches.
+- `i\text`: outputs text before the current line when address matches.
+- `c\text`: replaces the entire line with text when address matches; suppresses normal output.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q5 | 1 | -5 | New | regexSubstituteAll only tried matching at exact position, not scanning forward |
+
+**Total Phase 2 correctness deductions:** -5 (on Q5)
+
+## Lesson 09: Stream Editor (Phase 3 — Q9–Q12)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q9–Q12) |
+| Phase | 3 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 0 |
+| Test failures | 1 (Q10: line_regex_range re-triggered after range ended) |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 9 | Multiple commands (-e, -f) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 10 | Regex range addresses (/re1/,/re2/, N,/re/) | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 11 | In-place editing (-i) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | Substitution flags (p, N, gp) and integration | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 9 (Q9): 60/60 (perfect)**
+- Compiled and all tests passed on first attempt.
+- Multiple `-e` flags: tested `sed -e 's/"//g' -e '/^$/d' test.txt` — matches system sed.
+- Script file (`-f`): created `script.sed` with 3 commands, output matches system sed.
+- Mixed `-e` and `-f`: `./ccsed -e '1i\HEADER' -f script.sed -e '$a\FOOTER' test.txt` — matches system sed.
+- Implementation: Commands stored in `ArrayList(Command)`, parsed from `-e` args and `-f` file lines. Commands execute sequentially per line. `d` command breaks out of command loop for that line. Script files: read with `readFileAlloc`, split by newlines, skip empty/comment lines.
+
+**Exercise 10 (Q10): 55/60 (-5 from correctness)**
+- **Test failure 1 (-5, new mistake):** The `line_regex_range` address type (`3,/success/d`) re-triggered after the range ended. After line 5 matched "success" and closed the range, subsequent lines (6+) with `line_num >= 3` re-entered the range, deleting all remaining lines. Fixed by adding a `range_done` flag that prevents `line_regex_range` from re-triggering (it is a one-shot range, unlike `/regex1/,/regex2/` which can re-trigger).
+- After fix: all 3 test cases pass:
+  - `-n '/INFO/,/ERROR/p'` on log.txt: prints from first INFO through first ERROR, re-triggers for subsequent ranges (matches sed).
+  - `'3,/success/d'` on unquoted.txt: deletes lines 3-5, keeps 1-2 and 6-10 (matches sed).
+  - `-n '/WARN/,/WARN/p'` on log.txt: prints from first WARN through second WARN (matches sed).
+- Address types added: `regex_range` (`/re1/,/re2/`) with re-triggering, `line_regex_range` (`N,/re/`) one-shot.
+- Stateful matching via `in_range` and `range_done` fields on each Command struct.
+
+**Exercise 11 (Q11): 60/60 (perfect)**
+- Compiled and all tests passed on first attempt.
+- `-i` flag: writes to temp file (`filename.ccsed.tmp`), renames on success.
+- Permissions preserved: original file's mode obtained via `file.stat()`, applied to temp file via `std.posix.fchmod()` before rename.
+- Error safety: if processing fails, temp file is deleted and original is untouched.
+- Combined flags: `-i -e 's/busy/BUSY/g'` works correctly.
+- Permission test: file with mode 755 retains 755 after in-place edit.
+
+**Exercise 12 (Q12): 60/60 (perfect)**
+- Compiled and all tests passed on first attempt.
+- `p` flag on substitution: `-n 's/ERROR/***ERROR***/p'` prints only the 3 modified ERROR lines (matches sed).
+- Numeric flag: `'s/aaa/XXX/2'` replaces only the 2nd occurrence — "aaa bbb XXX bbb" (matches sed).
+- Combined `gp`: `-n 's/hello/HI/gp'` does global replace and prints (matches sed).
+- Complex pipeline: `-n -e '/ERROR/s/^[^ ]* //' -e '/ERROR/p'` removes date prefix from ERROR lines (matches sed).
+- Implementation: `regexSubstituteNth` function scans for the Nth match, replaces only that one, copies everything else verbatim.
+- All 8 final integration tests pass against system sed.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q10 | 1 (logic) | -5 | New | line_regex_range re-triggered after range ended; needed `range_done` flag |
+
+**Total Phase 3 correctness deductions:** -5 (on Q10)
+
+## Lesson 09: Stream Editor — Combined Scoring
+
+### Score Computation
+
+| # | Correctness (30) | Quality | Efficiency (0) | Score |
+|---|-------------------|---------|----------------|-------|
+| Q1 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q2 | 30 | A (+30) | 0 | 60 |
+| Q3 | 30 | A (+30) | 0 | 60 |
+| Q4 | 30 | A (+30) | 0 | 60 |
+| Q5 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q6 | 30 | A (+30) | 0 | 60 |
+| Q7 | 30 | A (+30) | 0 | 60 |
+| Q8 | 30 | A (+30) | 0 | 60 |
+| Q9 | 30 | A (+30) | 0 | 60 |
+| Q10 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q11 | 30 | A (+30) | 0 | 60 |
+| Q12 | 30 | A (+30) | 0 | 60 |
+
+- Average exercise score: (55x3 + 60x9) / 12 = (165 + 540) / 12 = 705 / 12 = 58.75
+- Lesson score: (58.75 / 100) x 15 = **8.81/15 pts** (Level 1, 15 pt pool)
+
+### Reflection
+
+**Q1 failure (flush on Writer struct vs interface):** Called `stderr_w.flush()` on the `File.Writer` struct instead of `stderr.flush()` on `&w.interface`. In 0.15.2, `flush()` is a method on `std.io.Writer` (the vtable interface), not on `fs.File.Writer`. SKILL.md had a code comment noting this, but it was too subtle. Now promoted to a full Compiler Gotchas entry.
+
+**Q5 failure (regex substitute scan-forward):** `regexSubstituteAll` only tried matching at the exact `search_pos`, not scanning forward from that position. This is a pure algorithmic logic error, not a Zig-specific issue. No skill update needed.
+
+**Q10 failure (line_regex_range re-trigger):** The `line_regex_range` address type (`3,/pattern/`) incorrectly re-triggered after the range had ended. Needed a `range_done` flag to make it one-shot. Also a pure algorithmic issue. No skill update needed.
+
+**All 3 failures were new mistakes (-5 each, -15 total).** None were repeated mistakes from SKILL.md.
+
+**Clean-pass patterns (9 of 12 exercises):** Successfully built a full sed-like stream editor with: recursive backtracking regex engine (`.`, `*`, `+`, `?`, `[...]`, `\(...\)`, `\1`-`\9`), line/regex addressing, substitution with flags (g, p, N), delete/quit/append/insert/change/transliterate/hold-space commands, multiple commands (-e, -f script files), regex range addresses, in-place editing (-i) with permission preservation. All I/O patterns (buffered writer, line reading, file operations, atomic rename) executed correctly.
+
+**Cost increase analysis:** 165 turns, $13.81 vs baseline 68 turns, $6.39 — 116.1% increase. Phase 1 alone took 76 turns for 4 exercises (building a regex engine from scratch is inherently expensive — many compile-test cycles for edge cases). Phases 2 and 3 were more reasonable (40 and 49 turns respectively). The regex engine construction dominates cost. Efficiency score: 0 (clamped).
+
+**Skill updates made:**
+1. Added Compiler Gotchas entry: `flush()` on Writer interface, not struct
+2. Added Filesystem pattern: in-place editing with `fchmod` for permission preservation and atomic rename
+3. Updated `stream_processing.zig` snippet: expanded atomic file write pattern to include `fchmod` and `errdefer` cleanup
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phase 1 cost | $5.56 (76 turns) |
+| Phase 2 cost | $3.32 (40 turns) |
+| Phase 3 cost | $4.93 (49 turns) |
+| **Run 2 total** | **$13.81 (165 turns)** |
+| Run 1 baseline | $6.39 (68 turns) |
+| Cost reduction | -116.1% (LARGE INCREASE) |
+| Efficiency score | 0 (clamped from -106.1) |
+| **Lesson score** | **8.81/15 pts** (Level 1, 15 pt pool) |

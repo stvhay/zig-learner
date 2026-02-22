@@ -122,16 +122,22 @@ test "parseCliArgs" {
     try testing.expectEqualStrings("file.txt", opts.filename.?);
 }
 
-// Pattern 4: Atomic file write (in-place editing)
-// Write to temp file, then rename. Prevents data loss on failure.
-// NOTE: This is the pattern, not runnable in test (needs real filesystem).
+// Pattern 4: Atomic file write (in-place editing) with permission preservation
+// Write to temp file, copy permissions via fchmod, then rename.
+// NOTE: Not runnable in test (needs real filesystem).
 // ```zig
-// const tmp = try std.fmt.allocPrint(gpa, "{s}.tmp", .{fname});
-// defer gpa.free(tmp);
-// const f = try std.fs.cwd().createFile(tmp, .{});
-// try f.writeAll(output);
-// f.close();
-// try std.fs.cwd().rename(tmp, fname);
+// const tmp_path = try std.fmt.allocPrint(gpa, "{s}.tmp", .{fname});
+// defer gpa.free(tmp_path);
+// const tmp = try std.fs.cwd().createFile(tmp_path, .{});
+// errdefer { tmp.close(); std.fs.cwd().deleteFile(tmp_path) catch {}; }
+// try tmp.writeAll(output);
+// // Preserve original file permissions (important for in-place editing)
+// const orig = try std.fs.cwd().openFile(fname, .{});
+// const stat = try orig.stat();
+// orig.close();
+// std.posix.fchmod(tmp.handle, stat.mode) catch {};
+// tmp.close();
+// try std.fs.cwd().rename(tmp_path, fname);  // atomic replace
 // ```
 
 // Pattern 5: Character transliteration (like tr or sed y command)
