@@ -28,7 +28,9 @@ Training is organized into **lesson plans** — numbered directories containing 
       test1.txt, ...
     07-git-internals.md      — lesson (quiz-only → flat .md file)
     ...
-    GRADES.md                — per-plan grade records (created by agent)
+    GRADES.md                — current run's grade records
+    GRADES-run1.md           — archived Run 1 grades
+    baselines.json           — Run 1 cost baselines (turns + $ per lesson)
 ```
 
 **Lesson plan execution:**
@@ -38,11 +40,35 @@ Training is organized into **lesson plans** — numbered directories containing 
 
 **Grade records:** Each plan has its own `GRADES.md` in the plan directory. The agent creates this file when it starts taking lessons. Format: a summary table (total points, earned points, letter grade per lesson) followed by detailed per-exercise scoring.
 
-**Creating lesson plans:** The agent can create new lesson plans by adding a numbered directory with lesson entries. A lesson is either a flat `.md` file (quiz only) or a subdirectory with `quiz.md` plus fixture files. Exercise creation is done by an independent subagent — exercises are judged on topic coverage and subtlety. Each exercise is difficulty 1 (5 pts), 2 (10 pts), or 3 (20 pts), totaling 200 +/- 20 points for foundation lessons or 60 +/- 10 points for applied lessons.
+**Creating lesson plans:** The agent can create new lesson plans by adding a numbered directory with lesson entries. A lesson is either a flat `.md` file (quiz only) or a subdirectory with `quiz.md` plus fixture files. Exercise creation is done by an independent subagent — exercises are judged on topic coverage and subtlety. Foundation lessons have 25 exercises (5/10/20 pt mix); applied lessons have 12 exercises at 5 pts each.
+
+### Lesson Manifest
+
+The 00-bootstrap plan has 17 lessons. Quiz files are unchanged from Run 1.
+
+| # | Title | Quiz File | Level |
+|---|-------|-----------|-------|
+| 1 | Core Language Fundamentals | `01-foundation.md` §1 | 0 |
+| 2 | Standard Library Essentials | `01-foundation.md` §2 | 0 |
+| 3 | Error Handling & Allocators | `01-foundation.md` §3 | 0 |
+| 4 | Comptime & Metaprogramming | `01-foundation.md` §4 | 0 |
+| 5 | Idioms & Design Patterns | `01-foundation.md` §5 | 0 |
+| 6 | Concurrency & Threading | `01-foundation.md` §6 | 0 |
+| 7 | Hex Dump | `02-hex-dump/quiz.md` | 1 |
+| 8 | Huffman Compression | `03-huffman-compression/quiz.md` | 1 |
+| 9 | Stream Editor | `04-stream-editor/quiz.md` | 1 |
+| 10 | HTTP Server | `05-http-server/quiz.md` | 1 |
+| 11 | Load Balancer | `06-load-balancer/quiz.md` | 1 |
+| 12 | Git Internals | `07-git-internals.md` | 2 |
+| 13 | Password Manager | `08-password-manager.md` | 3 |
+| 14 | IRC Client | `09-irc-client.md` | 1 |
+| 15 | MCP Server | `10-mcp-server.md` | 3 |
+| 16 | LSP Server | `11-lsp-server.md` | 2 |
+| 17 | Redis Server | `12-redis-server.md` | 3 |
 
 ### Lesson Cycle
 
-There are two lesson formats with different execution protocols.
+There are two execution strategies, chosen based on lesson structure (not grading).
 
 #### Foundation Lessons (single-agent)
 
@@ -91,18 +117,37 @@ Applied lessons build one program across 12 exercises. To limit context bloat an
 ### Output Directories
 
 - **Exercise answers** (source code solutions) go to `artifacts/` (gitignored, not indexed by RAG). This prevents the agent from looking up its own previous answers.
+- **Archived runs** live in `artifacts-archive/` (gitignored). **OFF LIMITS** — the agent must never read archived solutions.
 - **Generalizable code snippets and examples** that demonstrate patterns go to `.claude/skills/zig-expert/src/` (tracked in git, indexed by RAG). These should be curated reference material, not raw exercise output.
 - **Quiz specifications** live in `.claude/skills/zig-expert/src/lesson-plans/`.
 
 ### Grading Rubric
 
-For each exercise:
-- The solution does not fully answer the question: -100%
-- Every failed compile attempt deducts 1 point (new mistake) or 2 points (mistake already in the skill knowledge base)
-- You may attempt compilation with deductions, but can only run the program **once per question** to test correctness. No implementing functionality ahead of time for extra attempts. (-100% for incorrect implementation)
-- A: >=90%, B: >=80%, C: >=70%, D: >=60%, otherwise F
+Each exercise is scored on three components (max 105 per exercise, min 0):
 
-After the test, code quality is graded separately. Quality penalties: B: -10%, C: -20%, D: -30%, F: -50%.
+**1. Correctness (base 30):**
+- The solution does not fully answer the question: 0 correctness
+- Every failed compile attempt: -5 (new mistake) or -10 (mistake already in SKILL.md)
+- You may attempt compilation with deductions, but can only run the program **once per question** to test correctness. No implementing functionality ahead of time for extra attempts. (0 correctness for incorrect implementation)
+
+**2. Code Quality:**
+- A: +30, B: +20, C: +10, D: +0, F: -20
+
+**3. Efficiency (vs Run 1 baseline from `baselines.json`):**
+- 30% cost reduction vs baseline = +40
+- Each 1% less reduction: -1 (e.g., 20% reduction = +30, 0% reduction = +10, -10% = 0)
+- Can go negative for cost increases beyond 10% over baseline
+
+**Lesson score:** `(avg_exercise_score / 100) × level_points`
+
+| Level | Pts | Lessons |
+|-------|-----|---------|
+| 0 | 5 | 1–6 (foundation) |
+| 1 | 15 | 7–11, 14 (applied intro) |
+| 2 | 30 | 12, 16 (applied mid) |
+| 3 | 50 | 13, 15, 17 (applied advanced) |
+
+**Total pool: 330 pts.** 100 = expected score. 105 = ceiling.
 
 The agent should maximize its grade without cheating or undermining the learning process.
 
@@ -116,6 +161,8 @@ Grades are documented in `GRADES.md` within each lesson plan directory (see Less
 
 ### Cost Efficiency
 
+Cost efficiency is now a graded component. The efficiency score compares Run 2 cost against the Run 1 baseline in `baselines.json`. A 30% cost reduction earns maximum efficiency points (+40); cost increases are penalized.
+
 Every tool round-trip replays the full conversation. Cost grows **O(n²)** with turn count.
 
 **Execution strategy:**
@@ -128,7 +175,7 @@ Every tool round-trip replays the full conversation. Cost grows **O(n²)** with 
 
 **Cost measurement:** The orchestrator runs `.claude/scripts/session-cost.py` on each phase transcript and aggregates the results for Mode 2. The agent does not estimate its own token usage. Record the orchestrator-provided cost data in the GRADES.md `## Token Usage` section.
 
-The first run of each lesson establishes a cost baseline. Subsequent runs compare against it.
+Run 1 baselines are stored in `baselines.json`. The efficiency score is computed by the orchestrator after each lesson.
 
 ### Commit Strategy
 
@@ -137,7 +184,7 @@ There are two separate commit streams — keep them apart:
 **Lesson commits** (learning progress):
 - **One commit per lesson** — after completing the lesson cycle (attempt, reflection, skill update), commit the GRADES.md update and any SKILL.md / reference changes together. This is the "atomic commit" from the lesson cycle.
 - **End-of-plan commit** — if the final self-evaluation report at the end of a lesson plan produces additional skill updates beyond the last lesson's commit, that gets its own commit.
-- Commit messages should reference the lesson (e.g., `Lesson 02 Hex Dump: 55/60 (A)`).
+- Commit messages should reference the lesson and run (e.g., `R2 Lesson 07 Hex Dump: 12.3/15 pts`).
 
 **Infrastructure commits** (changes to the learning mechanism itself):
 - Changes to CLAUDE.md, lesson plan structure, quiz specifications, RAG config, build tooling, `.envrc`, submodule patches, or any other scaffolding.
@@ -162,9 +209,10 @@ When using subagents (Task tool) for lessons:
 After each lesson completes (both modes), the orchestrating agent must:
 
 1. **Run cost analysis** — Execute `.claude/scripts/session-cost.py --compact` on the mode 1 transcript. Pass the result to mode 2 via the resume prompt. Also run `--summary` and report cost breakdown to the user.
-2. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
-3. **RAG usage** — Did the agent search RAG during exercises? Check `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/`?
-4. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)?
+2. **Compute efficiency score** — Load the lesson's baseline from `baselines.json`. Calculate cost reduction percentage: `(1 - run2_cost / baseline_cost) × 100`. Map to efficiency points: `40 - (30 - reduction_pct)` (clamped to range, see Grading Rubric). Report the efficiency score alongside correctness and quality.
+3. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
+4. **RAG usage** — Did the agent search RAG during exercises? Check `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/`?
+5. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)?
 
 Update `SELF-IMPROVEMENT.md` in the plan directory with findings.
 
@@ -223,13 +271,17 @@ If RAG can't answer an API question, the agent should add the missing reference 
   src/                  — curated code examples and lesson plans (indexed by RAG)
     exercises/          — generalizable Zig code examples with tests
     lesson-plans/       — numbered plan directories
-      00-bootstrap/     — first plan (12 lessons, GRADES.md created on use)
+      00-bootstrap/     — 17-lesson plan
+        GRADES.md       — current run's grades
+        GRADES-run1.md  — archived Run 1 grades
+        baselines.json  — Run 1 cost baselines
 
 artifacts/              — exercise answers and work product (gitignored)
+artifacts-archive/      — archived prior runs (gitignored, OFF LIMITS)
 
 opt/local-rag/          — ragling (git submodule, patched for Zig tree-sitter)
 patches/                — patches applied to submodules on setup
-.claude/scripts/          — orchestrator tools (session-cost.py, scan-skills.py)
+.claude/scripts/        — orchestrator tools (session-cost.py, extract-baselines.py, etc.)
 .mcp.json               — MCP server config
 .envrc                  — Nix flake + direnv hooks
 .envrc.d/               — direnv init scripts (submodule, Ollama, RAG symlinks)

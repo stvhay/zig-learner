@@ -6,6 +6,9 @@ zig-cache/
 # Training artifacts — exercise answers and work product (not indexed by RAG)
 artifacts/
 
+# Archived training runs (off limits to agents)
+artifacts-archive/
+
 # Dev-only materials (research docs, reference books, ACE framework)
 docs/
 
