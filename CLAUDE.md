@@ -87,29 +87,30 @@ Foundation lessons have many independent exercises (typically 25). They run in a
 4. **Cost recording** — Write the cost data (provided by the orchestrator) into the GRADES.md Token Usage section.
 5. **Commit** — One commit per the Commit Strategy below (GRADES.md + SKILL.md + any new snippets together).
 
-#### Applied Lessons (phased execution)
+#### Applied Lessons (adaptive phasing)
 
-Applied lessons build one program across 12 exercises. To limit context bloat and O(n²) cost growth, they split into **3 phases of 4 exercises**, each in a fresh subagent. One Mode 2 subagent reflects afterward.
+Applied lessons build one program across 12 exercises. To limit context bloat and O(n²) cost growth, the orchestrator splits them into phases, each in a fresh subagent. Phase count is adaptive based on lesson complexity:
 
-**Phase structure:**
+| Baseline turns (from `baselines.json`) | Phases | Exercises per phase |
+|----------------------------------------|--------|---------------------|
+| <40 turns | 1 phase | All 12 (single agent, like foundation) |
+| 40–70 turns | 2 phases | Q1–Q6, Q7–Q12 |
+| >70 turns or complex domain (crypto, LSP) | 3 phases | Q1–Q4, Q5–Q8, Q9–Q12 |
 
-| Phase | Exercises | Purpose |
-|-------|-----------|---------|
-| 1 | Q1–Q4 | Foundation — core data structures, protocol, basic I/O |
-| 2 | Q5–Q8 | Features — user interaction, concurrency, extended commands |
-| 3 | Q9–Q12 | Polish — advanced features, validation, end-to-end testing |
+The orchestrator reads `baselines.json` turn count + considers lesson topic to choose phase count. One Mode 2 subagent reflects afterward.
 
-**Phase N — Exercise** (fresh subagent, N = 1, 2, 3):
+**Phase N — Exercise** (fresh subagent):
 1. Read quiz, SKILL.md, and the phase range (e.g., "Q5–Q8") from the orchestrator prompt.
-2. If N > 1, read prior phases' code from `artifacts/<lesson>/` to build on.
-3. Work through the phase's 4 exercises under the grading rubric.
-4. Write (Phase 1) or append (Phase 2–3) phase grades to GRADES.md.
-5. **Return.** Do not reflect, update SKILL.md, or commit.
+2. **Pre-flight gotcha search:** Search RAG for gotchas relevant to the lesson domain before writing any code: `rag_search(query="<domain> compile error gotcha", collection="zig-references")`.
+3. If N > 1, read prior phases' code from `artifacts/<lesson>/` to build on.
+4. Work through the phase's exercises under the grading rubric.
+5. Write (Phase 1) or append (Phase 2+) phase grades to GRADES.md.
+6. **Return.** Do not reflect, update SKILL.md, or commit.
 
-**Mode 2 — Self-assessment** (fresh subagent, after all 3 phases):
-1. Read all 3 phases' grades from GRADES.md.
+**Mode 2 — Self-assessment** (fresh subagent, after all phases):
+1. Read all phases' grades from GRADES.md.
 2. **Post-lesson reflection** — Identify patterns that caused compile failures; check if the skill covers them. Identify clean-pass patterns; verify the skill documents them. Flag stale skill entries.
-3. **Skill update** — Capture new knowledge. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing.
+3. **Skill update** — Capture new knowledge. **Always invoke the _writing-skills_ skill** (via the Skill tool) when editing. New gotchas go to `references/gotchas.md` (RAG-indexed), not SKILL.md. Follow the "Writing RAG Entries" format in SKILL.md.
 4. **Snippet curation** — If an exercise revealed a non-obvious pattern, extract a minimal working example into `.claude/skills/zig-expert/src/exercises/`. One small, commented, testable snippet per pattern.
 5. **Cost recording** — Write the aggregated cost data (provided by the orchestrator) into the GRADES.md Token Usage section.
 6. **Commit** — One commit per the Commit Strategy below (GRADES.md + SKILL.md + any new snippets together).
@@ -171,7 +172,9 @@ Every tool round-trip replays the full conversation. Cost grows **O(n²)** with 
 - **Minimize tool results.** Pipe verbose output through `head`, `tail`, or `grep`. Large compiler errors become context you replay forever.
 - **Fail less.** A compile-fix-recompile cycle costs 3 turns of replay. Use RAG/docs before writing, not after failing.
 
-**Phased execution caps context growth.** Applied lessons split into 3 phases of 4 exercises (see Lesson Cycle). Each phase starts a fresh subagent, capping turns at ~15 instead of 40+. This limits O(n²) replay cost per phase while preserving continuity through code on disk.
+**Phased execution caps context growth.** Applied lessons split into adaptive phases (see Lesson Cycle). Each phase starts a fresh subagent, capping turns per phase. This limits O(n²) replay cost per phase while preserving continuity through code on disk.
+
+**RAG-first for large docs.** Don't read full reference files — use `rag_search` to retrieve only relevant chunks. If content isn't indexed, index it first via `rag_index` (MCP) or `.claude/scripts/rag-index.sh` (CLI). Run indexing in a background Bash task and check with `TaskOutput(block=false)` to avoid blocking.
 
 **Cost measurement:** The orchestrator runs `.claude/scripts/session-cost.py` on each phase transcript and aggregates the results for Mode 2. The agent does not estimate its own token usage. Record the orchestrator-provided cost data in the GRADES.md `## Token Usage` section.
 
@@ -198,11 +201,13 @@ Never mix the two streams in a single commit.
 When using subagents (Task tool) for lessons:
 
 1. **MCP tools require foreground agents** — background agents (`run_in_background: true`) cannot use MCP tools. Lesson subagents must run in **foreground**. MCP tools are allowlisted in `.claude/settings.local.json`.
-2. **Foundation lessons: two-mode protocol** — Launch the subagent in mode 1 (exercise). After it returns, run `.claude/scripts/session-cost.py --compact` on the transcript at `~/.claude/projects/<project-path>/<session-id>/subagents/agent-<agent-id>.jsonl`. Resume the same agent in mode 2 with the cost JSON. The agent ID is returned by the Task tool.
-3. **Applied lessons: phased protocol** — Launch 3 separate subagents (one per phase), each as a fresh Task invocation (not a resume). Each phase prompt includes: quiz file path, SKILL.md, exercise range (e.g., "Q5–Q8"), and path to prior phases' code in `artifacts/`. After all 3 phases complete, run cost analysis on all 3 transcripts and launch a fresh Mode 2 subagent with the aggregated cost data and all phases' grades.
-4. **Skill update is mandatory** — The mode 2 prompt must require SKILL.md updates when mistakes are found. Include: "You MUST edit SKILL.md if you discover any gap or error."
-5. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
-6. **RAG usage** — The subagent should use `mcp__ragling__rag_search` during exercises, not just before. Search before coding each exercise if unsure about an API.
+2. **Background agents use CLI** — agents that run in the background can use `.claude/scripts/rag-search.sh` and `.claude/scripts/rag-index.sh` via Bash instead of MCP. This enables parallel lesson execution.
+3. **Foundation lessons: two-mode protocol** — Launch the subagent in mode 1 (exercise). After it returns, run `.claude/scripts/session-cost.py --compact` on the transcript at `~/.claude/projects/<project-path>/<session-id>/subagents/agent-<agent-id>.jsonl`. Resume the same agent in mode 2 with the cost JSON. The agent ID is returned by the Task tool.
+4. **Applied lessons: adaptive phased protocol** — Choose phase count based on `baselines.json` turn count (see Lesson Cycle). Launch one subagent per phase, each as a fresh Task invocation. Each phase prompt includes: quiz file path, SKILL.md, exercise range, and path to prior phases' code in `artifacts/`. After all phases complete, run cost analysis on all transcripts and launch a fresh Mode 2 subagent with aggregated cost data and all phases' grades.
+5. **Skill update is mandatory** — The mode 2 prompt must require SKILL.md updates when mistakes are found. Include: "You MUST edit SKILL.md if you discover any gap or error." New gotchas should go to `references/gotchas.md` following the Writing RAG Entries format.
+6. **Atomic commits** — Follow the Commit Strategy: one commit per lesson (GRADES.md + SKILL.md together), infrastructure changes in separate commits.
+7. **RAG usage** — The subagent should use `mcp__ragling__rag_search` during exercises, not just before. Search before coding each exercise if unsure about an API. **Pre-flight search:** before writing any code, search RAG for domain-relevant gotchas.
+8. **Async indexing** — If new references need indexing mid-lesson, run in background: `Bash(command=".claude/scripts/rag-index.sh project zig-references $PWD/rag/references/", run_in_background=true)`. Check with `TaskOutput(task_id=..., block=false)`. Continue other work while indexing runs.
 
 ### Orchestrator Reporting
 
@@ -210,11 +215,16 @@ After each lesson completes (both modes), the orchestrating agent must:
 
 1. **Run cost analysis** — Execute `.claude/scripts/session-cost.py --compact` on the mode 1 transcript. Pass the result to mode 2 via the resume prompt. Also run `--summary` and report cost breakdown to the user.
 2. **Compute efficiency score** — Load the lesson's baseline from `baselines.json`. Calculate cost reduction percentage: `(1 - run2_cost / baseline_cost) × 100`. Map to efficiency points: `40 - (30 - reduction_pct)` (clamped to range, see Grading Rubric). Report the efficiency score alongside correctness and quality.
-3. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything?
-4. **RAG usage** — Did the agent search RAG during exercises? Check `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/`?
+3. **Self-updating** — What did the agent add to SKILL.md? Was it the right weight (one-liner for a gotcha, table for a new domain, code block for an API pattern)? Did it miss anything? Did new gotchas go to `references/gotchas.md` (RAG-indexed) rather than bloating SKILL.md?
+4. **RAG usage** — Did the agent search RAG during exercises? Check `~/.ragling/zig-expert/query_log.jsonl`. Did it add curated snippets to `src/exercises/`? Did it do a pre-flight gotcha search?
 5. **Skill invocation** — Did the agent invoke complementary skills (writing-skills, systematic-debugging, verification-before-completion)?
+6. **Meta-strategy** — Record in `SELF-IMPROVEMENT.md`:
+   - Cost analysis: actual vs baseline, what drove cost up or down
+   - Phasing decision: was the phase count right? Should next similar lesson use more/fewer phases?
+   - RAG effectiveness: did pre-flight search prevent failures? Which searches were useful?
+   - Strategy refinement: one concrete change for the next lesson
 
-Update `SELF-IMPROVEMENT.md` in the plan directory with findings.
+The orchestrator should read `SELF-IMPROVEMENT.md` before starting each lesson to apply lessons learned.
 
 ## Skill Discovery
 
@@ -246,17 +256,36 @@ zig build-exe path/to/program.zig      # compile a standalone program
 
 A local RAG ([ragling](https://github.com/aihaysteve/local-rag)) indexes skill references and code for semantic search. The MCP server starts automatically (configured in `.mcp.json`). Use `rag_search` to query; use `rag_index` to re-index after changes. The `rag/` symlinks (created by `.envrc.d/ragling.sh`) give ragling clean paths into `.claude/skills/zig-expert/`.
 
+### Access Methods
+
+**MCP (foreground agents):** Use `mcp__ragling__rag_search`, `mcp__ragling__rag_index`, etc.
+
+**CLI (background agents or parallel execution):** Use wrapper scripts in `.claude/scripts/`:
+```bash
+.claude/scripts/rag-search.sh "ArrayList append" --collection zig-stdlib
+.claude/scripts/rag-index.sh project zig-references "$PWD/rag/references/"
+.claude/scripts/rag-collections.sh info zig-references
+```
+
+**Async indexing pattern:** Run indexing in a background Bash task to avoid blocking:
+```
+Bash(command=".claude/scripts/rag-index.sh project zig-references $PWD/rag/references/", run_in_background=true)
+# ... continue other work ...
+TaskOutput(task_id=..., block=false)  # check if done
+```
+
 ### Collections
 
 | Collection | Type | Contents |
 |---|---|---|
-| `zig-references` | project | Hand-written reference docs + stdlib API extracts (`references/`) |
+| `zig-references` | project | Hand-written reference docs, gotchas, stdlib API extracts (`references/`) |
 | `zig-src` | code | Curated exercises and lesson plans (`src/`) — tree-sitter parsed |
 | `zig-stdlib` | code | Curated Zig 0.15.2 stdlib source — tree-sitter parsed |
 
 ### Adding references
 
 If RAG can't answer an API question, the agent should add the missing reference material:
+- **Compiler gotchas** — add to `references/gotchas.md` following the Writing RAG Entries format in SKILL.md, then re-index `zig-references`.
 - **Stdlib API gaps** — run `.claude/scripts/extract-stdlib-api.py` to regenerate `references/stdlib/` from the Nix store, then re-index `zig-references`.
 - **External docs** — fetch with `WebFetch`, save to `references/`, re-index.
 - **Code patterns** — curate into `src/exercises/`, re-index `zig-src`.
@@ -281,7 +310,7 @@ artifacts-archive/      — archived prior runs (gitignored, OFF LIMITS)
 
 opt/local-rag/          — ragling (git submodule, patched for Zig tree-sitter)
 patches/                — patches applied to submodules on setup
-.claude/scripts/        — orchestrator tools (session-cost.py, extract-baselines.py, etc.)
+.claude/scripts/        — orchestrator tools (session-cost.py, rag-search.sh, rag-index.sh, etc.)
 .mcp.json               — MCP server config
 .envrc                  — Nix flake + direnv hooks
 .envrc.d/               — direnv init scripts (submodule, Ollama, RAG symlinks)
