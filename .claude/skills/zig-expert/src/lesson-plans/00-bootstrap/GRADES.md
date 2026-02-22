@@ -858,3 +858,51 @@ Phase 2 subagent consumed $0.990 over 20 turns but produced no grades or code ar
 | Total cost | N/A |
 | Baseline | $6.39 (68 turns) |
 | Efficiency score | N/A |
+
+---
+
+## Lesson 15: MCP Server (Level 3, 50 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | JSON Transport | 25 | A (+30) | +10 | 1 | 65 |
+| 2 | JSON-RPC Messages | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | Initialize Handshake | 20 | A (+30) | +10 | 2 | 60 |
+| 4 | Tool Registration | 30 | A (+30) | +10 | 0 | 70 |
+| 5 | Tool Execution | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | File System Tools | 25 | A (+30) | +10 | 1 | 65 |
+| 7 | Resources | 30 | A (+30) | +10 | 0 | 70 |
+| 8 | Prompts | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Logging & Notifications | 30 | A (+30) | +10 | 0 | 70 |
+| 10 | Dynamic Tool Registration | 20 | A (+30) | +10 | 1 | 60 |
+| 11 | Input Validation | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | End-to-End Test Harness | 25 | A (+30) | +10 | 1 | 65 |
+
+**Average exercise score:** (70x7 + 65x3 + 60x2) / 12 = 805 / 12 = 67.08 / 80
+**Lesson score:** (67.08 / 80) x 50 = **41.93 / 50 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| Q1 | Unreachable else prong on FBS reader error set | Use `@intFromError` comparison | New |
+| Q3 | `readUntilDelimiterOrEof` on `Io.Reader` (x2) | Use `takeDelimiter('\n')` | New |
+| Q6 | `ArrayList(u8).init(allocator)` instead of `.empty` | Use `.empty` + allocator-per-method | Known |
+| Q10 | `ArrayList.init(allocator)` instead of `.empty` | Use `.empty` | Known |
+| Q12 | `[]const u8` to `[]u8` const qualifier mismatch | Fix type annotation | New |
+
+### Reflection
+
+6 compile failures across 12 exercises in 3 phases. Quality consistently A-grade. Key patterns: JSON-RPC protocol, MCP capabilities, tool/resource/prompt registration, dynamic tool management, logging notifications. The `takeDelimiter` API gap caused 2 failures in Q3 before discovery. ArrayList.init remains a recurring known mistake.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 3 (Q1-Q4, Q5-Q8, Q9-Q12) |
+| Total turns | N/A (restart, interrupted session) |
+| Total cost | N/A |
+| Baseline | $9.26 (81 turns) |
+| Efficiency score | N/A |
