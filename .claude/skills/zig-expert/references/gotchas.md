@@ -188,6 +188,77 @@ const int1 = @intFromError(err1);
 
 Common traps: `i1`, `i2`, `i8`, `u8`, `f32` as loop counters or temporaries. Use `idx`, `val`, or descriptive names instead.
 
+## for range produces usize — needs @intCast for narrower accumulators
+
+`for (1..11) |i|` binds `i` as `usize`. Accumulating into a narrower type like `u32` via `sum += i` is a compile error: type mismatch.
+
+```zig
+// WRONG: usize cannot coerce to u32
+var sum: u32 = 0;
+for (1..11) |i| { sum += i; }
+
+// CORRECT: cast loop variable
+var sum: u32 = 0;
+for (1..11) |i| { sum += @intCast(i); }
+```
+
+## StructField.alignment must be >= 1 for sized types
+
+When constructing `std.builtin.Type.StructField` for `@Type`, setting `.alignment = 0` causes a compile error for any sized type. Use `@alignOf(T)`.
+
+```zig
+// WRONG: alignment = 0 for a sized type
+.{ .name = "x", .type = i32, .alignment = 0, ... }
+
+// CORRECT: use @alignOf
+.{ .name = "x", .type = i32, .alignment = @alignOf(i32), ... }
+
+// For optionally-sized types (e.g., type transforms):
+.alignment = if (@sizeOf(T) > 0) @alignOf(T) else 0,
+```
+
+## meta.Tag(U) returns tag enum type — not comparable with enum literals
+
+`std.meta.Tag(U)` returns the tag enum TYPE of a tagged union. Comparing it with `@TypeOf(.some_literal)` fails because enum literals have their own anonymous type.
+
+```zig
+const Value = union(enum) { integer: i64, string: []const u8 };
+
+// WRONG: @TypeOf(.integer) is an enum literal type, not Value's tag type
+const TagType = std.meta.Tag(Value);
+if (TagType == @TypeOf(.integer)) ...  // always false
+
+// CORRECT: introspect the tag enum's fields
+const tag_info = @typeInfo(TagType).@"enum";
+// Check field names, count, etc.
+```
+
+## comptime keyword needed in test/function blocks for array sizes
+
+Inside `test` or `fn` bodies, a labeled block result is NOT automatically comptime-known. If the result feeds an array size, add explicit `comptime`:
+
+```zig
+test "example" {
+    // WRONG: sum not comptime-known — cannot use as array size
+    const sum = blk: {
+        var s: u32 = 0;
+        for (1..11) |i| { s += @intCast(i); }
+        break :blk s;
+    };
+    var arr: [sum]u8 = undefined;  // ERROR
+
+    // CORRECT: explicit comptime makes result comptime-known
+    const sum = comptime blk: {
+        var s: u32 = 0;
+        for (1..11) |i| { s += @intCast(i); }
+        break :blk s;
+    };
+    var arr: [sum]u8 = undefined;  // OK
+}
+```
+
+Note: Module-level `const` is already comptime — do NOT add `comptime` there (see "Redundant comptime keyword" entry).
+
 ## Comptime checklist (5 rules)
 
 | Rule | Error if violated | Fix |

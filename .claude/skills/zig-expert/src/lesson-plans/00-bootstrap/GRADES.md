@@ -200,3 +200,70 @@ Each exercise is scored on three components (max 105, min 0):
 | Context replay | $1.01 |
 | Cache write | $0.86 |
 | Output | $0.32 |
+
+---
+
+## Lesson 04: Comptime & Metaprogramming (Level 0, 5 pts)
+
+### Summary
+
+| # | Topic | Pts | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|-----|---------|---------|------------|---------------|-------|
+| 1 | comptime var in blocks | 5 | 20 | A (+30) | +30 | 2 | 80 |
+| 2 | comptime function parameters | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 3 | comptime recursive factorial | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 4 | @typeInfo integers/floats | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 5 | @typeInfo structs | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 6 | @typeInfo diverse types | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 7 | @Type generate struct | 10 | 25 | A (+30) | +30 | 1 | 85 |
+| 8 | @Type generate enum | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 9 | @typeName | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 10 | std.meta fields/fieldNames/FieldEnum | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 11 | std.meta stringToEnum/activeTag | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 12 | std.meta hasFn/eql/Tag | 5 | 25 | A (+30) | +30 | 1 | 85 |
+| 13 | comptime ++ and ** | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 14 | comptimePrint | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 15 | comptime join and reverse | 10 | 25 | A (+30) | +30 | 1 | 85 |
+| 16 | base64 encode/decode tables | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 17 | precomputed squares | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 18 | inline for over types | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 19 | inline for over struct fields | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 20 | @compileError static assertions | 5 | 30 | A (+30) | +30 | 0 | 90 |
+| 21 | @hasDecl and @hasField | 5 | 25 | A (+30) | +30 | 1 | 85 |
+| 22 | builder pattern | 10 | 25 | A (+30) | +30 | 1 | 85 |
+| 23 | custom format {f} | 10 | 30 | A (+30) | +30 | 0 | 90 |
+| 24 | Nullable<T> via @Type | 20 | 25 | A (+30) | +30 | 1 | 85 |
+| 25 | comptime state machine | 20 | 30 | A (+30) | +30 | 0 | 90 |
+
+**Average exercise score:** (18 x 90 + 6 x 85 + 1 x 80) / 25 = 2210 / 25 = 88.40 / 105
+
+**Lesson score:** (88.40 / 100) x 5 = **4.42 / 5 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| 1 | `for (1..11)` produces `usize`, can't `+=` to `u32` | `@intCast(i)` | New |
+| 1 | `const sum = blk:` in test — not comptime-known for array size | `comptime blk:` | New |
+| 7 | `StructField.alignment = 0` — must be >= 1 for sized types | `@alignOf(field.type)` | New |
+| 12 | `meta.Tag(Value) == @TypeOf(.integer)` — different types | Introspect tag enum fields | New |
+| 15 | `comptimeJoin` returning `[]const u8` — "cannot return comptime value at runtime" | Return `*const [N]u8` | Known (gotchas.md) |
+| 21 | Same comptime return issue as Ex15 | Same fix | Known (gotchas.md) |
+| 22 | Same comptime return issue in `StructBuilder.init()` | Wrap in `comptime blk: { ... break :blk r; }` | Known (gotchas.md) |
+| 24 | Same `alignment = 0` issue as Ex07 | `@alignOf(NullableField)` | Known (gotchas.md, after Ex07 fix) |
+
+**5 distinct patterns, 4 new + 1 known.** 7 exercises with deductions, 18/25 clean passes.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Turns | 16 |
+| Total cost | $1.69 |
+| Baseline (Run 2) | $2.11 (21 turns) |
+| Cost reduction | +20% |
+| Efficiency score | +30 |
+| System replay | $0.09 |
+| Context replay | $0.44 |
+| Cache write | $0.77 |
+| Output | $0.38 |
