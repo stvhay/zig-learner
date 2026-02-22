@@ -28,3 +28,73 @@ Each exercise is scored on three components (max 105, min 0):
 ---
 
 <!-- Lesson sections appended below as Run 2 progresses -->
+
+## Lesson 01: Core Language Fundamentals
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 2 (Ex 23) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | Primitive types — integer sizes | 1 | 5 | 30 | A (+30) | — | 60 |
+| 2 | Primitive types — floats, bool, void | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | Variables — const vs var | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | Variables — undefined init | 1 | 5 | 30 | A (+30) | — | 60 |
+| 5 | Control flow — if/else expression | 1 | 5 | 30 | A (+30) | — | 60 |
+| 6 | Control flow — switch ranges | 1 | 5 | 30 | A (+30) | — | 60 |
+| 7 | Control flow — for loops | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | Control flow — while continue | 1 | 5 | 30 | A (+30) | — | 60 |
+| 9 | Functions — basics | 1 | 5 | 30 | A (+30) | — | 60 |
+| 10 | Errors — error sets, try/catch | 1 | 5 | 30 | A (+30) | — | 60 |
+| 11 | Optionals — ?T, orelse, if-unwrap | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | Tagged unions — switch dispatch | 1 | 5 | 30 | A (+30) | — | 60 |
+| 13 | Slices and arrays — basics | 1 | 5 | 30 | A (+30) | — | 60 |
+| 14 | Defer — LIFO ordering | 1 | 5 | 30 | A (+30) | — | 60 |
+| 15 | Comptime — blocks and params | 2 | 10 | 30 | A (+30) | — | 60 |
+| 16 | Comptime — @typeInfo/@typeName | 2 | 10 | 30 | A (+30) | — | 60 |
+| 17 | Labeled blocks and breaks | 2 | 10 | 30 | A (+30) | — | 60 |
+| 18 | Functions — error unions, fn ptrs | 2 | 10 | 30 | A (+30) | — | 60 |
+| 19 | Errors — errdefer only on error | 2 | 10 | 30 | A (+30) | — | 60 |
+| 20 | Tagged unions — methods, void | 2 | 10 | 30 | A (+30) | — | 60 |
+| 21 | Slices — sentinel, multi-dim | 2 | 10 | 30 | A (+30) | — | 60 |
+| 22 | Packed structs — bitSizeOf/sizeOf | 2 | 10 | 30 | A (+30) | — | 60 |
+| 23 | Peer type resolution | 3 | 20 | 20 (-5 -5) | A (+30) | — | 50 |
+| 24 | Casting and coercion | 3 | 20 | 30 | A (+30) | — | 60 |
+| 25 | Defer + errdefer in loops | 2 | 10 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-22, 24-25: Perfect (60/60 each)**
+- All compiled and passed tests on first attempt
+- Code quality: clean, well-commented, demonstrates all required concepts
+
+**Exercise 23: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-5, new mistake):** Used `const cond = true` which made the if/else evaluate at comptime, so `result` was `u32` not `?u32`. Fixed by using `var cond = true; _ = &cond;` to force runtime evaluation.
+- **Compile failure 2 (-5, new mistake):** Used `anyerror!u32` as the expected type for peer resolution of `u32` and `error.Fail`. The actual peer type is `error{Fail}!u32` (specific error set, not anyerror). Fixed the type check.
+- Lesson: When testing peer type resolution, conditions must be runtime-evaluated to trigger actual peer resolution. Comptime-known conditions cause the compiler to eliminate the dead branch. Also, peer resolution between a value and a specific error produces a specific error set, not anyerror.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| 23 | 2 | -10 | New | comptime condition eliminated dead branch; anyerror vs specific error set |
+
+**Total correctness deductions:** -10 (on exercise 23)
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $1.04 (16 turns) |
+| Run 1 baseline | $2.91 (60 turns) |
+| Cost reduction | 64.3% |
+| Efficiency score | 105 (capped from +74.3 raw) |
+| **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
