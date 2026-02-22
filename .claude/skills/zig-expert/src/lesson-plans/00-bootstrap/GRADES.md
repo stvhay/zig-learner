@@ -353,3 +353,105 @@ Each exercise is scored on three components (max 105, min 0):
 | Efficiency score | 56.6 (raw: 40 + 16.6) |
 | Avg exercise score | 100.66 |
 | **Lesson score** | **5.03/5 pts** (Level 0, 5 pt pool) |
+
+## Lesson 05: Idioms & Design Patterns
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 1 (Ex 24: parameter shadows method) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency (67.6) | Score |
+|---|-------|------|-----|-------------------|---------|-------------------|-------|
+| 1 | Generic data structure — Stack(T) returning struct | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 2 | Generic data structure — multi-type instantiation | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 3 | Vtable interface — define and call through fat pointer | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 4 | Vtable interface — multiple implementors, polymorphic array | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 5 | Iterator pattern — next() returns ?T, while-optional loop | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 6 | Iterator pattern — filter iterator adapter | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 7 | Writer interface — GenericWriter with custom context | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 8 | Writer interface — ArrayList writer and fixedBufferStream | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 9 | Allocator interface — parameter convention, init/deinit | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 10 | Allocator interface — arena allocator scoped lifetime | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 11 | RAII / defer — init/deinit pair with defer | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 12 | RAII / defer — errdefer for partial initialization cleanup | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 13 | Sentinel-terminated slices — [:0]const u8 properties | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 14 | Sentinel-terminated slices — mem.span, mem.sliceTo | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 15 | @fieldParentPtr — recover parent from embedded field | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 16 | @fieldParentPtr — intrusive linked list traversal | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 17 | Comptime generics — BoundedBuffer(T, cap) with static array | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 18 | Comptime generics — comptime validation and comptimePrint | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 19 | Tagged union state machine — define states, transitions | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 20 | Tagged union state machine — exhaustive switch dispatch | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 21 | Options struct pattern — defaults and partial init | 1 | 5 | 30 | A (+30) | +67.6 | 105 |
+| 22 | Options struct pattern — builder-style chaining | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 23 | Type-erased callbacks — *anyopaque context + fn pointer | 2 | 10 | 30 | A (+30) | +67.6 | 105 |
+| 24 | Combined: generic container with iterator + allocator | 3 | 20 | 20 (-10) | A (+30) | +67.6 | 105 |
+| 25 | Combined: type-erased event system with vtable + callbacks | 3 | 20 | 30 | A (+30) | +67.6 | 105 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-23, 25: Perfect (60/60 each)**
+- All compiled and passed tests on first attempt
+- Code quality: clean, well-structured, demonstrates all required concepts
+- Key patterns demonstrated correctly:
+  - GenericStack with `fn GenericStack(comptime T: type) type` returning struct with `@This()`
+  - Vtable fat pointer pattern: `ptr: *anyopaque` + `vtable: *const VTable` with convenience methods
+  - Polymorphic arrays of vtable interfaces for runtime dispatch
+  - Iterator pattern with `next() ?T` and `while (iter.next()) |val|` consumption
+  - FilterIterator adapter wrapping slice + predicate function pointer
+  - GenericWriter with custom context for uppercase transformation
+  - ArrayList(u8).writer(allocator) and fixedBufferStream for formatted output
+  - Allocator parameter convention: init(allocator, ...) / deinit(self, allocator)
+  - ArenaAllocator.init(page_allocator), .allocator(), .deinit() for bulk free
+  - RAII with defer for init/deinit pairs in nested scopes
+  - errdefer for partial initialization cleanup on error paths
+  - Sentinel-terminated slices: [:0]const u8 properties, coercion, allocSentinel
+  - mem.span for [*:0] to [], mem.sliceTo on arrays to find prefix before sentinel
+  - @fieldParentPtr("field_name", ptr) for intrusive data structures
+  - Intrusive doubly-linked list traversal via embedded Node fields
+  - BoundedBuffer(T, cap) with comptime-sized static array
+  - @compileError for comptime validation, comptimePrint for descriptions
+  - Tagged union state machines with advance() transitions
+  - Exhaustive switch dispatch on union(enum) variants
+  - Options struct with default field values and partial initialization
+  - Builder-style chaining returning *Self
+  - Type-erased callbacks with *anyopaque + @ptrCast(@alignCast(...))
+  - Type-erased event system combining vtable pattern with ArrayList logging
+
+**Exercise 24: 50/60 (-10 from correctness)**
+- **Compile failure 1 (-10, repeated mistake):** Function parameter `capacity` in `init` shadowed the method `capacity`. SKILL.md documents: "Function params shadow same-named methods — rename to avoid compile error." Fixed by renaming parameter to `cap`.
+- Deque implementation: ring buffer with head/count tracking, pushFront/pushBack/popFront/popBack, iterator yielding front-to-back order. All tests pass after fix.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| 24 | 1 | -10 | Repeated | Function parameter `capacity` shadowed method `capacity` |
+
+**Total correctness deductions:** -10 (on exercise 24)
+
+### Efficiency Score
+
+| # | Correctness (30) | Quality | Efficiency (67.6) | Score |
+|---|-------------------|---------|-------------------|-------|
+| 1-23, 25 | 30 | A (+30) | +67.6 | 105 |
+| 24 | 20 (-10 repeated) | A (+30) | +67.6 | 105 |
+
+**Average exercise score:** 105.0
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $1.50 (14 turns) |
+| Run 1 baseline | $3.54 (39 turns) |
+| Cost reduction | 57.6% |
+| Efficiency score | 67.6 (raw: 40 + 27.6) |
+| **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |

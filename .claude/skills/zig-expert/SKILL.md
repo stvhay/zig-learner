@@ -383,6 +383,19 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | **Use `comptime var` + `inline for`** | Plain `var`/`for` don't work in comptime array construction | Both keywords required |
 | **Compute lengths inline in comptime blocks** | Local `const len = f()` outside block not recognized as comptime-known inside `comptime blk:` | Call length function directly where needed, or assign inside the comptime block |
 
+**Design patterns:**
+| Pattern | Structure | When |
+|---------|-----------|------|
+| Generic container | `fn Stack(comptime T: type) type { return struct { ... }; }` | Type-parametric data structures |
+| Vtable interface | `struct { ptr: *anyopaque, vtable: *const VTable }` + convenience methods | Runtime polymorphism (allocator, writer, reader) |
+| Iterator | `fn next(self: *Self) ?T` + `while (it.next()) \|val\|` | Lazy sequences, streaming |
+| Iterator adapter | Wrap inner iterator, delegate `next()` with filter/map | Composable transformations |
+| Intrusive container | Embed `Node` field in item, recover parent via `@fieldParentPtr` | O(1) insert/remove, no per-node allocation |
+| Options struct | Struct with default field values + partial init `.{ .field = val }` | Replacing long parameter lists |
+| Builder chaining | Methods return `*Self` for `init().setX().setY().build()` | Fluent configuration |
+| Type-erased callback | `ctx: *anyopaque` + `fn(*anyopaque) void` | Event systems, generic hooks |
+| State machine | `union(enum) { state1: T1, ... }` + `fn advance(self: *Self)` | Protocol states, parsers |
+
 **Data structure:**
 | Need | Use |
 |------|-----|
@@ -431,7 +444,7 @@ Rules where Zig idiom diverges from other languages:
 8. **Exhaustive switch** — never `else` when all variants are known
 
 ### Pre-Completion Checklist
-Before declaring done: function >40 lines? String if-else chain? Same pattern 3x? Magic numbers? Explicit error set >2 types? Unused declarations? These are recurring quality issues.
+Before declaring done: function >40 lines? String if-else chain? Same pattern 3x? Magic numbers? Explicit error set >2 types? Unused declarations? Parameter name same as method name? These are recurring quality issues.
 
 ### Naming
 camelCase (functions/vars), PascalCase (types), snake_case (constants/struct fields).
