@@ -560,3 +560,223 @@ Each exercise is scored on three components (max 105, min 0):
 - All 25 exercises: Correctness 30 + Quality A (+30) + Efficiency 83.7 = 143.7, capped at 105
 - Average exercise score: 105.0
 - Lesson score: (105.0 / 100) x 5 = 5.25 (capped at 5.25)
+
+## Lesson 07: Hex Dump (Phase 1 — Q1–Q4)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q1–Q4) |
+| Phase | 1 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (unused mutable variable) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | Basic hex dump — read and format | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 2 | Binary file — all 256 byte values | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | Grouping (-g) flag | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | Columns (-c) and length (-l) flags | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 1 (Q1): 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** Declared `var uppercase = false; _ = uppercase;` — a mutable variable that was never used (intended for later phases). Zig 0.15.2 requires `const` for non-mutated locals. Fixed by removing the declaration entirely.
+- After fix: compiled and ran correctly. Output matches `xxd test1.txt` and `xxd test3.txt` byte-for-byte.
+- Code quality: clean architecture with separated `printHexGroups` and `calcHexWidth` helper functions. Proper buffered stdout/stderr, GPA allocator, arg parsing with `argsWithAllocator`.
+
+**Exercise 2 (Q2): 60/60 (perfect)**
+- No additional code changes needed — Q1's implementation already handles all 256 byte values correctly.
+- Verified: `diff <(./ccxxd test2.bin) <(xxd test2.bin)` shows zero differences.
+- Non-printable bytes (0x00-0x1F, 0x7F-0xFF) correctly displayed as `.` in ASCII column.
+- Hex encoding correct for all byte values 0x00-0xFF.
+
+**Exercise 3 (Q3): 60/60 (perfect)**
+- Added `-g` flag parsing and integrated group_size into `printHexGroups`.
+- `-g 0` (no grouping), `-g 1`, `-g 2` (default), `-g 4` all match xxd byte-for-byte.
+- Partial last groups on partial lines handled correctly.
+- ASCII column alignment adjusts properly for different group sizes via `calcHexWidth`.
+
+**Exercise 4 (Q4): 60/60 (perfect)**
+- Added `-c` and `-l` flag parsing.
+- `-c 8`, `-l 16`, and combined `-l 16 -c 4` all match xxd byte-for-byte.
+- `-l 0` correctly produces no output.
+- Column width affects both hex and ASCII sections correctly.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q1 | 1 | -5 | New | Unused mutable variable `var uppercase` — should be `const` or removed |
+
+**Total correctness deductions:** -5 (on Q1)
+
+## Lesson 07: Hex Dump (Phase 2 — Q5–Q8)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q5–Q8) |
+| Phase | 2 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 5 | File seeking (-s) flag | 1 | 5 | 30 | A (+30) | — | 60 |
+| 6 | Stdin support | 1 | 5 | 30 | A (+30) | — | 60 |
+| 7 | Plain hex mode (-p) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | Uppercase mode (-u) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 5 (Q5): 60/60 (perfect)**
+- `-s` flag was partially implemented in Phase 1 (arg parsing with `std.fmt.parseInt(usize, val, 0)` for auto-detect hex/decimal, and `file.seekTo(seek_offset)`).
+- Phase 2 verified all test cases: `-s 10`, `-s 0x10`, `-s 10 -l 16` all match xxd byte-for-byte.
+- Seeking past EOF produces no output (not an error) — verified on test3.txt with -s 1000.
+- Hex prefix parsing works via `parseInt` base 0 (auto-detect).
+
+**Exercise 6 (Q6): 60/60 (perfect)**
+- Added stdin support: when no filename given (or `-` given explicitly), reads from `std.fs.File.stdin()`.
+- Conditional `defer file.close()` — only close actual files, not stdin.
+- For `-s` with stdin: reads and discards bytes (can't seek on pipes). Implemented with discard buffer loop.
+- All flags work with stdin: verified `-c 8`, `-s 4 -l 8` with pipe input.
+- Output identical to file mode in all tests.
+
+**Exercise 7 (Q7): 60/60 (perfect)**
+- Added `-p` (plain hex) flag: outputs continuous hex digits with no offset or ASCII columns.
+- Lines wrap at 60 hex characters (30 bytes) per line.
+- Works with `-l` for byte limiting and `-s` for seeking.
+- Works with `-u` for uppercase output.
+- No trailing spaces on lines. Final partial line gets trailing newline.
+- Byte-for-byte match against `xxd -p` on all test cases.
+
+**Exercise 8 (Q8): 60/60 (perfect)**
+- Added `-u` (uppercase) flag: hex digits A-F become uppercase.
+- Offset remains lowercase (uses separate `{x:0>8}` format for offset).
+- Passed uppercase flag through to `printHexGroups` function (added `upper: bool` parameter).
+- Works with all other flags: `-g`, `-c`, `-l`, `-s`, `-p`.
+- Conditional format: `if (upper) stdout.print("{X:0>2}", ...) else stdout.print("{x:0>2}", ...)` — comptime format strings require if/else branch, not runtime string selection.
+- Byte-for-byte match against `xxd -u` and `xxd -u -p` on all test cases.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| (none) | 0 | 0 | — | — |
+
+**Total correctness deductions:** 0
+
+## Lesson 07: Hex Dump (Phase 3 — Q9–Q12)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q9–Q12) |
+| Phase | 3 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 9 | Little-endian mode (-e) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 10 | C include mode (-i) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 11 | Reverse mode (-r) | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | Reverse plain hex (-r -p) and binary mode (-b) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 9 (Q9): 60/60 (perfect)**
+- Implemented `-e` (little-endian) flag: reverses byte order within each hex group.
+- Default grouping changes to 4 bytes when `-e` is used without explicit `-g` (tracked via `group_size_set` bool).
+- New `printHexGroupsLE` function reverses bytes within each group by iterating from end to start.
+- Partial groups (last group with fewer bytes than group_size): right-aligned with leading spaces via `calcHexWidthLE` which always uses full group width.
+- ASCII column remains in file order (not reversed).
+- All 3 test cases match expected output: `-e test1.txt | head -1`, `-e -g 8 test1.txt | head -1`, `echo -n "ABCDE" | -e`.
+
+**Exercise 10 (Q10): 60/60 (perfect)**
+- Implemented `-i` (C include) flag: outputs data as C array declaration.
+- Variable name from filename: `makeCVarName` replaces non-alphanumeric chars with `_`, prepends `_` if starts with digit.
+- Array format: `0x` prefixed lowercase hex bytes, 12 per line, comma-separated.
+- Handles comma placement: comma after each byte except the last on a 12-byte line (which gets comma+newline). Last byte overall has no trailing comma.
+- Final line: `unsigned int <name>_len = <count>;`
+- Both test cases match expected output exactly: `-i test3.txt` (2 bytes) and `-i test4.txt` (16 bytes, spanning 2 lines).
+
+**Exercise 11 (Q11): 60/60 (perfect)**
+- Implemented `-r` (reverse) mode: reads hex dump from file or stdin, outputs binary bytes.
+- Parses standard xxd format: skips offset + `: `, reads hex digits, stops at double-space before ASCII column.
+- Uses `deprecatedReader` + `readUntilDelimiterOrEof` for line-by-line reading.
+- Hex parsing with `hexCharToNibble`: accumulates high then low nibble, writes byte when pair complete. Ignores spaces between groups.
+- Three round-trip tests all pass with zero diff:
+  - `ccxxd test1.txt | ccxxd -r` (standard format)
+  - `ccxxd test2.bin | ccxxd -r` (all 256 byte values)
+  - `ccxxd -c 8 test1.txt | ccxxd -r` (different column width)
+
+**Exercise 12 (Q12): 60/60 (perfect)**
+- **Reverse plain hex (`-r -p`):** Reads continuous hex digits ignoring whitespace/newlines, outputs binary. Round-trip `ccxxd -p | ccxxd -r -p` produces identical file.
+- **Binary mode (`-b`):** Displays each byte as 8 binary digits using `{b:0>8}` format specifier. Grouping fixed at 1 byte (8 chars), separated by spaces. Default columns set to 6 when `-b` used without explicit `-c` (tracked via `cols_set` bool).
+- ASCII column still present and right-aligned via padding calculation: `full_width = cols * 9 - 1`, `actual_width = line_len * 9 - 1`.
+- Both binary mode test cases match expected output: `echo -n "AB" | -b` and `echo -n "Hello" | -b`.
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| (none) | 0 | 0 | — | — |
+
+**Total correctness deductions:** 0
+
+## Lesson 07: Hex Dump — Combined Scoring
+
+### Score Computation
+
+| # | Correctness (30) | Quality | Efficiency (0) | Score |
+|---|-------------------|---------|----------------|-------|
+| Q1 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q2 | 30 | A (+30) | 0 | 60 |
+| Q3 | 30 | A (+30) | 0 | 60 |
+| Q4 | 30 | A (+30) | 0 | 60 |
+| Q5 | 30 | A (+30) | 0 | 60 |
+| Q6 | 30 | A (+30) | 0 | 60 |
+| Q7 | 30 | A (+30) | 0 | 60 |
+| Q8 | 30 | A (+30) | 0 | 60 |
+| Q9 | 30 | A (+30) | 0 | 60 |
+| Q10 | 30 | A (+30) | 0 | 60 |
+| Q11 | 30 | A (+30) | 0 | 60 |
+| Q12 | 30 | A (+30) | 0 | 60 |
+
+- Average exercise score: (55 + 60×11) / 12 = 715 / 12 = 59.58
+- Lesson score: (59.58 / 100) × 15 = **8.94/15 pts** (Level 1, 15 pt pool)
+
+### Reflection
+
+**Q1 failure (unused mutable variable):** Declared `var uppercase = false` for use in later phases. Zig requires `const` for non-mutated locals. This is a discipline lapse, not a knowledge gap — const vs var is fundamental and well-covered in the skill.
+
+**Cost increase analysis:** The phased approach (3 fresh subagents) cost $5.19 (74 turns) vs Run 1's single-agent $3.44 (47 turns) — a 50.9% increase. For a relatively straightforward applied lesson, the overhead of 3 fresh context initializations outweighed the O(n²) savings from shorter phases. Phased execution is better suited for lessons with high per-exercise complexity that would cause a single agent's context to grow very large.
+
+**Clean-pass patterns:** All 11 exercises after Q1 compiled and ran correctly on first attempt. The hex dump implementation demonstrated strong command of file I/O, CLI arg parsing, format specifiers, and reverse hex parsing. The comptime format string branching pattern (using if/else to select between `{X:0>2}` and `{x:0>2}`) was correctly applied without guidance.
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phase 1 cost | $1.68 (27 turns) |
+| Phase 2 cost | $1.89 (28 turns) |
+| Phase 3 cost | $1.62 (19 turns) |
+| **Run 2 total** | **$5.19 (74 turns)** |
+| Run 1 baseline | $3.44 (47 turns) |
+| Cost reduction | -50.9% (INCREASE) |
+| Efficiency score | 0 (clamped from -40.9) |
+| **Lesson score** | **8.94/15 pts** (Level 1, 15 pt pool) |

@@ -318,6 +318,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - `_ = x;` is compile error if x was mutated — restructure to avoid the variable
 - `catch` block value: `const x = expr catch blk: { ...; break :blk fallback; };`
 - Error set exhaustiveness: concrete reader types have small known error sets — `else` prong may be unreachable. Use bare `catch` or name the specific error.
+- **Comptime format strings:** `print("{X:0>2}", .{val})` vs `print("{x:0>2}", .{val})` — format specifiers must be comptime-known. To switch case at runtime, use `if (upper) print("{X:0>2}", .{v}) else print("{x:0>2}", .{v})`. Cannot build format string dynamically.
 - `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
 - `std.time.sleep()` does NOT exist — use `std.Thread.sleep(ns)` (nanoseconds)
 - Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"
