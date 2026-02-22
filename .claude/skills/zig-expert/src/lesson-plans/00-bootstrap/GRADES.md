@@ -1254,3 +1254,215 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | -116.1% (LARGE INCREASE) |
 | Efficiency score | 0 (clamped from -106.1) |
 | **Lesson score** | **8.81/15 pts** (Level 1, 15 pt pool) |
+
+## Lesson 10: HTTP Server (Phase 1 — Q1-Q4)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | Q1-Q4 (of 12) |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (repeated: std.io.getStdErr/getStdOut instead of std.fs.File.stderr/stdout — SKILL.md documents this) |
+| Test failures | 0 |
+
+### Grade Table (Phase 1)
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q1 | TCP listener — accept, read, respond | 1 | 5 | 28 (-2 repeated compile fail, shared across Q1-Q4) | A (+30) | — | 58 |
+| Q2 | Parse request line, loop, 400 | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q3 | Serve static files, Content-Type, 404 | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q4 | HEAD method, 405 for unsupported | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring
+
+**Q1 (5 pts): TCP Listener — Accept and Echo**
+- Compile: 1 failure (repeated — used `std.io.getStdErr()` instead of `std.fs.File.stderr()`, already documented in SKILL.md). -2 pts.
+- Test: PASS — curl returns HTML content, stdout shows full request with `GET / HTTP/1.1` and headers.
+- Note: Q1 asks for "Hello, World!" fixed response, but since Q2-Q4 build on it, the final server serves files. The TCP accept/read/respond/close mechanism is correct.
+- Quality: A — clean structure, proper defer, buffered writer used correctly.
+- Score: 28 + 30 = 58
+
+**Q2 (5 pts): Parse the Request Line**
+- Compile: 0 failures (shared compile was Q1's fix).
+- Test: PASS — malformed `GARBAGE\r\n\r\n` via nc returns 400; normal paths parse correctly.
+- Parsing uses `mem.splitScalar` as recommended.
+- Quality: A — exhaustive null checks on all 3 parts (method, path, version).
+- Score: 30 + 30 = 60
+
+**Q3 (5 pts): Serve Static Files**
+- Compile: 0 failures.
+- Test: PASS — all 5 file types served with correct Content-Type and Content-Length.
+  - `/` -> index.html (169 bytes, text/html)
+  - `/about.html` (138 bytes, text/html)
+  - `/style.css` (120 bytes, text/css)
+  - `/data.json` (55 bytes, application/json)
+  - `/nope.html` -> 404 with "404 Not Found\n" body
+- Quality: A — `getContentType()` as separate function, `fs.path.extension()` used.
+- Score: 30 + 30 = 60
+
+**Q4 (5 pts): Support HEAD Method**
+- Compile: 0 failures.
+- Test: PASS — HEAD returns headers only (no body), correct Content-Length. DELETE returns 405.
+- Quality: A — boolean flag `is_head` cleanly gates body output.
+- Score: 30 + 30 = 60
+
+### Phase 1 Totals
+
+| Metric | Value |
+|--------|-------|
+| Total score | 238/240 (avg 59.5/60) |
+| Phase grade | A (99.2%) |
+
+## Lesson 10: HTTP Server (Phase 2 — Q5-Q8)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | Q5-Q8 (of 12) |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (repeated: narrow arithmetic overflow with u4 << 4 in percent-decode — SKILL.md documents "Narrow arithmetic overflow" gotcha) |
+| Test failures | 0 |
+
+### Grade Table (Phase 2)
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q5 | Subdirectory, percent-decode, null byte | 1 | 5 | 28 (-2 repeated: narrow u4 << 4 overflow, documented in SKILL.md) | A (+30) | — | 58 |
+| Q6 | Path traversal protection (resolve + prefix check) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q7 | Keep-alive, Connection header, SO_RCVTIMEO | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q8 | Concurrent connections (Thread.spawn + detach) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring
+
+**Q5 (5 pts): Subdirectory and Path Handling**
+- Compile: 1 failure (repeated — `u4 << 4` overflows because `hexVal` returns `u4` and shifting left 4 produces a value outside `u4` range. SKILL.md documents "Narrow arithmetic overflow: cast to result width BEFORE the operation." Fix: `@as(u8, hi) << 4`). -2 pts.
+- Test: PASS — `/subdir/nested.html` serves 200 with correct content. `/subdir/` returns 404 (no index.html in subdir). `/about%2Ehtml` serves about page via percent-decode. Null byte in path returns 400 Bad Request.
+- Manual percent-decode handles %20, %2F, %3F, %3D, %26, %2E and all hex pairs.
+- Quality: A — clean `percentDecode` function with proper `hexVal` helper, buffer-based output avoids allocations.
+- Score: 28 + 30 = 58
+
+**Q6 (5 pts): Path Traversal Protection**
+- Compile: 0 failures (shared compile from Q5 fix).
+- Test: PASS — `/../etc/passwd`, `/subdir/../../etc/passwd`, `/%2e%2e/etc/passwd` all return 403 Forbidden. Normal paths still return 200.
+- Uses `std.fs.path.resolve(gpa, &.{www_root, relative_path})` to canonicalize, then `mem.startsWith` to verify resolved path stays under www_root. Also checks that the character after www_root prefix is `/` to prevent prefix spoofing (e.g., www_root_evil/).
+- Quality: A — resolve + prefix check is the standard defense-in-depth approach. Percent-decode happens before resolve (correct order).
+- Score: 30 + 30 = 60
+
+**Q7 (5 pts): Connection Keep-Alive**
+- Compile: 0 failures.
+- Test: PASS — `Connection: close` header echoed back and connection closed. Default behavior is keep-alive with `Connection: keep-alive` header. Two requests on same connection both served (curl reuses). SO_RCVTIMEO verified at 5.0s via Python socket test.
+- `headerValueContains` parses headers case-insensitively for header name matching.
+- Quality: A — clean separation: `connectionThread` manages keep-alive loop, `handleRequest` returns bool for close decision. SO_RCVTIMEO set once per connection.
+- Score: 30 + 30 = 60
+
+**Q8 (5 pts): Concurrent Connections with Threads**
+- Compile: 0 failures.
+- Test: PASS — slow client holding connection does not block fast clients. Three concurrent curl requests all complete in ~20ms. Thread.spawn + detach pattern correct.
+- Quality: A — `Thread.spawn(.{}, connectionThread, .{gpa, conn})` with `.detach()`. Connection close handled by deferred `conn.stream.close()` in thread. Accept loop never blocks on I/O.
+- Score: 30 + 30 = 60
+
+### Phase 2 Totals
+
+| Metric | Value |
+|--------|-------|
+| Total score | 238/240 (avg 59.5/60) |
+| Phase grade | A (99.2%) |
+
+## Lesson 10: HTTP Server (Phase 3 — Q9-Q12)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | Q9-Q12 (of 12) |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (new: used `std.io.getStdOut()` which does not exist in 0.15.2 — correct API is `std.fs.File.stdout()`) |
+| Test failures | 0 |
+
+### Grade Table (Phase 3)
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q9 | Response headers (Date, Server, Content-Length, Content-Type, Connection) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q10 | HTML error pages (400, 403, 404, 405) with correct Content-Type/Length | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q11 | Configurable root directory (CLI args, validation, defaults) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q12 | Access logging in Common Log Format (mutex, thread-safe) | 1 | 5 | 25 (-5 new: `std.io.getStdOut()` → `std.fs.File.stdout()`) | A (+30) | — | 55 |
+
+### Per-Exercise Scoring
+
+**Q9 (5 pts): Response Headers and HTTP Compliance**
+- Compile: 0 failures (shared compile with all Q9-Q12 features).
+- Test: PASS — Response includes `Date: Sun, 22 Feb 2026 17:06:49 GMT` (correct HTTP format), `Server: zig-http/0.1`, `Content-Type`, `Content-Length`, `Connection: keep-alive/close`.
+- Date formatting uses `EpochSeconds` → `getEpochDay()` → `calculateYearDay()` → `calculateMonthDay()` for date components, `getDaySeconds()` for time. Day of week computed as `(epoch_day.day + 4) % 7` (Jan 1, 1970 = Thursday).
+- Quality: A — clean `formatHttpDate` function with static arrays for day/month names. Correct 0-based to 1-based day_index conversion.
+- Score: 30 + 30 = 60
+
+**Q10 (5 pts): Error Pages with HTML Bodies**
+- Compile: 0 failures.
+- Test: PASS — All error responses (400, 403, 404, 405) return HTML body `<!DOCTYPE html><html><body><h1>{code} {reason}</h1></body></html>` with `Content-Type: text/html` and correct `Content-Length`. HEAD to missing file returns 404 with headers but empty body.
+- `errorHtmlBody` helper formats the template into a stack buffer. `sendErrorResponse` replaced `sendResponse` with HTML content type.
+- Quality: A — DRY error generation via helper function. Content-Length computed from actual body.
+- Score: 30 + 30 = 60
+
+**Q11 (5 pts): Configurable Root Directory**
+- Compile: 0 failures.
+- Test: PASS — `./webserver abc ./www` → "Error: invalid port number 'abc'" (exit 1). `./webserver 8080 /nonexistent` → "Error: directory does not exist" (exit 1). `./webserver 9090 <path>` serves from specified root on specified port. Default (no args) uses port 8080, `./www`.
+- Uses `std.process.argsWithAllocator` to parse CLI args. Validates port via `std.fmt.parseInt(u16, ...)` and directory existence via `fs.cwd().openDir()`. Canonicalizes with `fs.path.resolve`. Global vars `g_www_root` and `g_port` replace hardcoded constants.
+- Quality: A — clean arg parsing with proper error messages to stderr. Directory validation before server startup. Canonicalized path used for traversal checks.
+- Score: 30 + 30 = 60
+
+**Q12 (5 pts): Access Logging**
+- Compile: 1 failure (new — used `std.io.getStdOut()` which does not exist in Zig 0.15.2. SKILL.md documents `std.fs.File.stdout()` but not `std.io.getStdOut()` explicitly as a non-existent API. Fix: use `std.fs.File.stdout().handle` with `posix.write` for direct unbuffered output). -5 pts.
+- Also discovered that `File.stdout().writer(&buf)` + `flush()` via interface didn't reliably output in threaded context. Switched to direct `posix.write()` which is simpler and guaranteed.
+- Test: PASS — Log format: `127.0.0.1 - - [22/Feb/2026:17:09:36 +0000] "GET /index.html HTTP/1.1" 200 169`. Body size correctly 0 for HEAD requests, error body size for error responses. Mutex prevents interleaved output.
+- Quality: A — `logAccess` formats into stack buffer then writes atomically under mutex. `formatLogDate` uses Common Log Format date. `formatClientIp` extracts raw bytes from `conn.address.in.sa.addr`.
+- Score: 25 + 30 = 55
+
+### Phase 3 Totals
+
+| Metric | Value |
+|--------|-------|
+| Total score | 235/240 (avg 58.75/60) |
+| Phase grade | A (97.9%) |
+
+### Combined Lesson 10 Totals (All Phases)
+
+| Phase | Score | Grade |
+|-------|-------|-------|
+| Phase 1 (Q1-Q4) | 238/240 | A (99.2%) |
+| Phase 2 (Q5-Q8) | 238/240 | A (99.2%) |
+| Phase 3 (Q9-Q12) | 235/240 | A (97.9%) |
+| **Total** | **711/720 (avg 59.25/60)** | **A (98.8%)** |
+
+Lesson 10 final score: **59/60** (A)
+
+### Reflection
+
+**Compile failures — all 3 repeated:**
+1. **`std.io.getStdErr()` / `std.io.getStdOut()`** (Q1, Q12) — This is the #1 persistent failure across the training plan. The correct 0.15.2 API is `std.fs.File.stderr()` / `.stdout()`. SKILL.md had this documented as a comment inside a code block, which was insufficient to prevent recurrence. **Fix:** Added a dedicated, bold Compiler Gotchas bullet point with explicit "STOP and verify" instruction.
+2. **`u4 << 4` narrow overflow** (Q5) — `hexDigit()` returns `u4`, left-shifting by 4 exceeds the type's range. The existing "Narrow arithmetic overflow" gotcha applied but wasn't recalled. **Fix:** Added the hex-digit-specific example to the existing gotcha entry.
+
+**Clean-pass patterns (9 of 12 exercises):** TCP server lifecycle, HTTP request parsing, static file serving, HEAD method, path traversal defense (resolve + prefix check), keep-alive with Connection header, concurrent connections (Thread.spawn + detach), HTTP date formatting with EpochSeconds, HTML error pages, CLI arg parsing, thread-safe mutex-guarded logging. All networking and concurrency patterns executed correctly when the I/O accessor mistake was avoided.
+
+**Cost increase analysis:** 129 turns, $7.69 vs baseline 66 turns, $4.73 — 62.6% increase. Phase 1 was efficient (16 turns, $0.98) but Phase 2 ballooned to 45 turns ($2.91) and Phase 3 to 68 turns ($3.80). The progressive complexity of building on prior phases' code while adding features (keep-alive, concurrency, logging) explains the turn growth. The repeated `getStdOut` failure in Phase 3 added unnecessary cycles.
+
+**Skill updates made:**
+1. Added dedicated Compiler Gotchas entry: `std.io.getStdOut()` / `getStdErr()` / `getStdIn()` do not exist — use `std.fs.File.stdout()`, etc. Elevated from a code comment to a bold bullet point.
+2. Extended narrow arithmetic overflow gotcha with `u4 << 4` hex-digit example.
+3. Added thread-safe atomic write pattern to Networking section: format into local buffer, lock mutex, `posix.write` for direct unbuffered output.
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phase 1 cost | $0.98 (16 turns) |
+| Phase 2 cost | $2.91 (45 turns) |
+| Phase 3 cost | $3.80 (68 turns) |
+| **Run 2 total** | **$7.69 (129 turns)** |
+| Run 1 baseline | $4.73 (66 turns) |
+| Cost reduction | -62.6% (INCREASE) |
+| Efficiency score | 0 (clamped from -52.6) |
+| **Lesson score** | **8.89/15 pts** (Level 1, 15 pt pool) |

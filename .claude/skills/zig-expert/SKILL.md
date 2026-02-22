@@ -180,6 +180,13 @@ std.posix.setsockopt(conn.stream.handle, std.posix.SOL.SOCKET,
 // TCP stream reads may return partial data — loop until complete message parsed
 // stream.read() returns 0..N bytes; never assume one read = one message
 
+// Thread-safe atomic write (avoids buffered writer interleaving)
+// Format into local buffer FIRST, then lock mutex + posix.write atomically
+var log_mutex: std.Thread.Mutex = .{};
+log_mutex.lock();
+defer log_mutex.unlock();
+_ = std.posix.write(std.fs.File.stdout().handle, formatted_buf[0..len]) catch {};
+
 // Signal handling
 const sa = std.posix.Sigaction{
     .handler = .{ .handler = myHandler },  // fn(c_int) callconv(.c) void
@@ -315,6 +322,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 
 ### Compiler Gotchas
 
+- **`std.io.getStdOut()` / `getStdErr()` / `getStdIn()` DO NOT EXIST in 0.15.2.** Use `std.fs.File.stdout()`, `.stderr()`, `.stdin()`. This is the most repeated compile failure — 3x in Lesson 10 alone. The 0.14 names are deeply embedded in training data. **STOP and verify every time you write stdout/stderr/stdin access.**
 - `catch |_|` → bare `catch`; `sort` → `std.sort.pdq()`
 - `@fieldParentPtr("field_name", ptr)` — string first
 - `StringHashMap.deinit()` does NOT free keys — free via `keyIterator()` first
@@ -329,7 +337,7 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - `std.ascii.eqlIgnoreCase(a, b)` for case-insensitive string comparison
 - `std.time.sleep()` does NOT exist — use `std.Thread.sleep(ns)` (nanoseconds)
 - Freeing sub-slices panics: `alloc(N)` then `free(buf[0..M])` = "Invalid free"
-- **Narrow arithmetic overflow:** `u8 * 100` stays `u8` — panics if result > 255. Widen first: `@as(u32, narrow_val) * 100`. Same for `+`, `-`, `<<`. Rule: cast to result width BEFORE the operation.
+- **Narrow arithmetic overflow:** `u8 * 100` stays `u8` — panics if result > 255. Widen first: `@as(u32, narrow_val) * 100`. Same for `+`, `-`, `<<`. Rule: cast to result width BEFORE the operation. **Common trap:** `hexDigit()` returns `u4`, then `u4 << 4` overflows — use `@as(u8, hi) << 4`.
 - **Comptime branch elimination:** `const cond = true; if (cond) a else b` evaluates at comptime — dead branch is eliminated, no peer type resolution occurs. To test peer resolution, force runtime: `var cond = true; _ = &cond;`
 - **Peer type resolution for errors:** `T` and `error.Foo` resolve to `error{Foo}!T` (specific set), NOT `anyerror!T`. Only explicit annotation or `||` merging produces `anyerror`.
 - **Redundant `comptime` keyword:** Module-level `const` and struct-level `const` are already comptime. Writing `const x = comptime blk: { ... }` at these scopes is a compile error. Use plain labeled blocks: `const x = blk: { ... break :blk val; };`
