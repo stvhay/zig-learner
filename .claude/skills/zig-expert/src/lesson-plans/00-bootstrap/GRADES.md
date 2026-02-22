@@ -142,3 +142,61 @@ Each exercise is scored on three components (max 105, min 0):
 | Context replay | $0.42 |
 | Cache write | $0.72 |
 | Output | $0.28 |
+
+---
+
+## Lesson 03: Error Handling & Allocators (Level 0, 5 pts)
+
+### Summary
+
+| # | Topic | Pts | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|-----|---------|---------|------------|---------------|-------|
+| 1 | Error sets — declaration and named | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 2 | Error sets — anonymous/inferred | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 3 | Error sets — merging with \|\| | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 4 | Error sets — @errorName introspection | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 5 | Error sets — @intFromError numeric identity | 5 | 25 | A (+30) | +36 | 1 | 91 |
+| 6 | Error unions — basic ErrorSet!T and try | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 7 | Error unions — catch with fallback | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 8 | Error unions — catch with error payload | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 9 | Error unions — if-else error unwrap | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 10 | errdefer — basic cleanup on error path | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 11 | errdefer — ordering (LIFO) | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 12 | errdefer — \|err\| capture | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 13 | Error handling in loops — break on error | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 14 | Error handling in loops — partial cleanup | 5 | 30 | A (+30) | +36 | 0 | 96 |
+| 15 | FixedBufferAllocator — stack-based | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 16 | FixedBufferAllocator — reset | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 17 | ArenaAllocator — basics | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 18 | ArenaAllocator — reset modes | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 19 | FailingAllocator — fail at index | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 20 | FailingAllocator — stats tracking | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 21 | checkAllAllocationFailures — exhaustive OOM | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 22 | Error set merging multi-layer | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 23 | StackFallbackAllocator — stack-first | 10 | 30 | A (+30) | +36 | 0 | 96 |
+| 24 | Custom allocator — VTable | 20 | 30 | A (+30) | +36 | 0 | 96 |
+| 25 | Allocator composition — arena+fixed+OOM | 20 | 30 | A (+30) | +36 | 0 | 96 |
+
+**Average exercise score:** (24 × 96 + 91) / 25 = 2395 / 25 = 95.80 / 105
+
+**Lesson score:** (95.80 / 100) × 5 = **4.79 / 5 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| 5 | Variable `i1` shadows Zig primitive type `i1` (1-bit signed integer) | Rename variable to `int1` or `val1` — avoid all primitive type names (`i1`–`i64`, `u1`–`u64`, `f16`–`f128`) | New |
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Turns | 33 |
+| Total cost | $2.39 |
+| Baseline (Run 2) | $3.24 (23 turns) |
+| Cost reduction | +26% |
+| Efficiency score | +36 |
+| System replay | $0.19 |
+| Context replay | $1.01 |
+| Cache write | $0.86 |
+| Output | $0.32 |

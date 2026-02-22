@@ -174,6 +174,20 @@ const result = std.math.log2_int(@as(u32, 8));
 const result = std.math.log2_int(u32, 8);
 ```
 
+## Variable name shadows primitive type (i1, u1, etc.)
+
+Zig reserves all primitive type names as keywords: `i1`–`i65535`, `u1`–`u65535`, `f16`, `f32`, `f64`, `f80`, `f128`. Using one as a variable name is a compile error: "shadows primitive type."
+
+```zig
+// WRONG: i1 is a 1-bit signed integer type
+const i1 = @intFromError(err1);
+
+// CORRECT: use a descriptive name
+const int1 = @intFromError(err1);
+```
+
+Common traps: `i1`, `i2`, `i8`, `u8`, `f32` as loop counters or temporaries. Use `idx`, `val`, or descriptive names instead.
+
 ## Comptime checklist (5 rules)
 
 | Rule | Error if violated | Fix |
