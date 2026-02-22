@@ -455,3 +455,73 @@ Each exercise is scored on three components (max 105, min 0):
 | Context replay | $0.63 |
 | Cache write | $0.83 |
 | Output | $0.33 |
+
+---
+
+## Lesson 06: Concurrency & Threading (Level 0, 5 pts)
+
+### Summary
+
+| # | Topic | Pts | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|-----|---------|---------|------------|---------------|-------|
+| 1 | Thread.spawn and join | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 2 | Multiple threads — parallel writes | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 3 | threadlocal variables | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 4 | getCpuCount and sleep | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 5 | Mutex — lock/unlock with defer | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 6 | Condition variable — signal and wait | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 7 | Atomic.Value — init, load, store | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 8 | Atomic fetchAdd/fetchSub | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 9 | Atomic bitwise ops | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 10 | Atomic swap | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 11 | WaitGroup lifecycle | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 12 | ResetEvent signaling | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 13 | Semaphore permits | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 14 | spinLoopHint and cache_line | 5 | 30 | A (+30) | -34 | 0 | 26 |
+| 15 | Mutex shared state across threads | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 16 | Producer-consumer bounded queue | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 17 | cmpxchgStrong semantics | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 18 | Atomic counter across threads | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 19 | Acquire/release publish pattern | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 20 | Thread.Pool with WaitGroup | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 21 | RwLock concurrent readers/writer | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 22 | cmpxchgWeak retry loop | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 23 | Multi-phase coordination | 10 | 30 | A (+30) | -34 | 0 | 26 |
+| 24 | Lock-free stack (CAS) | 20 | 30 | A (+30) | -34 | 0 | 26 |
+| 25 | Barrier + pipeline | 20 | 30 | A (+30) | -34 | 0 | 26 |
+
+**Average exercise score:** 26 x 25 / 25 = 26.00 / 100
+
+**Lesson score:** (26.00 / 100) x 5 = **1.30 / 5 pts**
+
+**Compile failures:** 0 across all 25 exercises
+**Test failures:** 0 across all 25 exercises
+
+### Compile Failure Log
+
+No compile failures.
+
+### Reflection
+
+**Zero compile failures** — Perfect correctness and quality across all 25 exercises. The agent demonstrated strong command of Zig's concurrency primitives: Thread.spawn, Mutex, Condition, atomics (Value, cmpxchgStrong/Weak, fetch operations), WaitGroup, ResetEvent, Semaphore, RwLock, Thread.Pool, and custom synchronization patterns (barrier, lock-free stack).
+
+**Cost overrun analysis** — 39 turns vs 14-turn baseline (2.8x). $2.55 vs $1.77 baseline (-44% cost reduction, i.e., 44% OVER baseline). This is the worst efficiency score of any lesson so far (-34). Despite zero failures, the agent used nearly 3x the turns. Possible causes:
+1. **Granular testing** — Each exercise may have been compiled and tested individually rather than batched (the foundation lesson protocol calls for writing multiple solutions per turn and testing in batches).
+2. **Excessive RAG lookups** — Concurrency APIs may have triggered many pre-flight searches that could have been batched into fewer turns.
+3. **Verbose output** — Concurrency test output (thread interleaving) may have bloated context without being piped through head/grep.
+
+**Key lesson:** For foundation-level exercises with well-understood APIs, the agent should batch more aggressively — writing 5-8 solutions per turn and testing them together. The zero-failure result proves the knowledge was already sufficient; the turn count reflects process inefficiency, not knowledge gaps.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Turns | 39 |
+| Total cost | $2.55 |
+| Baseline (Run 2) | $1.77 (14 turns) |
+| Cost reduction | -44% (over baseline) |
+| Efficiency score | -34 |
+| System replay | $0.23 |
+| Context replay | $1.22 |
+| Cache write | $0.80 |
+| Output | $0.31 |
