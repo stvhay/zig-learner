@@ -233,6 +233,81 @@ const t0 = std.time.nanoTimestamp();
 const elapsed_ns: u64 = @intCast(std.time.nanoTimestamp() - t0);
 ```
 
+### Stdlib Quick Reference
+
+**HashMap patterns:**
+```zig
+// getOrPut — upsert without double-lookup
+const gop = try map.getOrPut(key);
+if (!gop.found_existing) gop.value_ptr.* = 0;
+gop.value_ptr.* += 1;
+
+// Iterator — key_ptr.*/value_ptr.* pattern
+var it = map.iterator();
+while (it.next()) |entry| { _ = entry.key_ptr.*; _ = entry.value_ptr.*; }
+
+// remove returns bool; fetchRemove returns ?KV (struct with .key, .value)
+_ = map.remove(key);  // true if existed
+if (map.fetchRemove(key)) |kv| { _ = kv.key; _ = kv.value; }
+```
+
+**String/mem utilities:**
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `mem.splitScalar(u8, s, ',')` | iterator | Consecutive delimiters → empty strings |
+| `mem.splitSequence(u8, s, "=>")` | iterator | Multi-char delimiter |
+| `mem.tokenizeScalar(u8, s, ' ')` | iterator | **Skips** consecutive delimiters |
+| `mem.tokenizeAny(u8, s, ", ;")` | iterator | Any char in set is delimiter |
+| `mem.indexOf(u8, hay, needle)` | `?usize` | First occurrence |
+| `mem.lastIndexOf(u8, hay, needle)` | `?usize` | Last occurrence |
+| `mem.trim(u8, s, " ")` | `[]const u8` | Strip chars from both ends |
+| `mem.concat(gpa, u8, &.{"a","b"})` | `![]u8` | Allocates — must free |
+| `mem.replaceOwned(u8, gpa, s, "-", "_")` | `![]u8` | Allocates — must free |
+| `mem.zeroes([8]u8)` | `[8]u8` | Zero-initialized, works for any type |
+| `mem.asBytes(&val)` | `*[@sizeOf(T)]u8` | Reinterpret as bytes (little-endian on LE) |
+
+**Formatting:**
+```zig
+// comptimePrint — zero-cost comptime string literal
+const name = comptime std.fmt.comptimePrint("field_{d}", .{42});
+
+// Format specifier syntax: {specifier:fill<alignment>width.precision}
+// {d:0>8}    → "00000042"     (zero-padded decimal)
+// {X}        → "FF"           (hex uppercase)
+// {x}        → "ff"           (hex lowercase)
+// {b}        → "1010"         (binary)
+// {d:.3}     → "3.142"        (float precision — {d} works for both int and float)
+// {s:_<10}   → "zig_______"   (left-align with fill char)
+```
+
+**Sort:**
+```zig
+std.sort.pdq(T, slice, {}, std.sort.asc(T));   // ascending
+std.sort.pdq(T, slice, {}, std.sort.desc(T));   // descending
+std.sort.isSorted(T, slice, {}, std.sort.asc(T)); // check sorted
+// Custom: struct { fn lt(_: void, a: T, b: T) bool { ... } }.lt
+```
+
+**Math:**
+```zig
+@min(a, b); @max(a, b);             // builtins, NOT std.math.min/max
+std.math.clamp(val, lo, hi);        // clamp to range
+std.math.isPowerOfTwo(n);           // asserts n > 0 (panics on 0!)
+std.math.log2_int(u32, 8);          // → 3 (floor log2)
+std.math.divCeil(u32, 10, 3) catch unreachable;  // → 4 (returns error union!)
+std.math.maxInt(u8);                // → 255 (comptime)
+std.math.minInt(i8);                // → -128 (comptime)
+```
+
+**JSON dynamic Value access:**
+```zig
+const parsed = try std.json.parseFromSlice(std.json.Value, gpa, input, .{});
+defer parsed.deinit();
+const name = parsed.value.object.get("name").?.string;     // string field
+const count = parsed.value.object.get("count").?.integer;   // i64 field
+const items = parsed.value.object.get("tags").?.array.items; // []Value
+```
+
 ### Compiler Gotchas
 
 - `catch |_|` → bare `catch`; `sort` → `std.sort.pdq()`

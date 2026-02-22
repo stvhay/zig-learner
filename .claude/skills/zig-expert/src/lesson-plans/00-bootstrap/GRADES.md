@@ -98,3 +98,79 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | 64.3% |
 | Efficiency score | 105 (capped from +74.3 raw) |
 | **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
+
+## Lesson 02: Standard Library Essentials
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | ArrayList — .empty init, append, items slice | 1 | 5 | 30 | A (+30) | — | 60 |
+| 2 | ArrayList — appendSlice and length verification | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | ArrayList — insert and orderedRemove | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | ArrayList — swapRemove and pop | 1 | 5 | 30 | A (+30) | — | 60 |
+| 5 | ArrayList — clearRetainingCapacity preserves memory | 1 | 5 | 30 | A (+30) | — | 60 |
+| 6 | ArrayList — ensureTotalCapacity pre-allocation | 2 | 10 | 30 | A (+30) | — | 60 |
+| 7 | AutoHashMap — init, put, get, contains, count | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | AutoHashMap — getOrPut upsert pattern | 2 | 10 | 30 | A (+30) | — | 60 |
+| 9 | AutoHashMap — remove, fetchRemove, iterator | 2 | 10 | 30 | A (+30) | — | 60 |
+| 10 | StringHashMap — string keys | 1 | 5 | 30 | A (+30) | — | 60 |
+| 11 | std.mem — eql, startsWith, endsWith | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | std.mem — indexOf and lastIndexOf | 1 | 5 | 30 | A (+30) | — | 60 |
+| 13 | std.mem — trim, trimLeft, trimRight | 1 | 5 | 30 | A (+30) | — | 60 |
+| 14 | std.mem — splitScalar and splitSequence | 2 | 10 | 30 | A (+30) | — | 60 |
+| 15 | std.mem — tokenizeScalar vs splitScalar | 2 | 10 | 30 | A (+30) | — | 60 |
+| 16 | std.mem — zeroes, asBytes, concat | 2 | 10 | 30 | A (+30) | — | 60 |
+| 17 | std.fmt — bufPrint with {d} and {s} specifiers | 1 | 5 | 30 | A (+30) | — | 60 |
+| 18 | std.fmt — allocPrint and comptimePrint | 2 | 10 | 30 | A (+30) | — | 60 |
+| 19 | std.fmt — padding, hex, binary, float precision | 2 | 10 | 30 | A (+30) | — | 60 |
+| 20 | std.sort — pdq ascending and descending | 1 | 5 | 30 | A (+30) | — | 60 |
+| 21 | std.sort — custom comparator and isSorted | 2 | 10 | 30 | A (+30) | — | 60 |
+| 22 | std.math — @min/@max builtins, clamp | 1 | 5 | 30 | A (+30) | — | 60 |
+| 23 | std.math — isPowerOfTwo, log2_int, divCeil, maxInt | 1 | 5 | 30 | A (+30) | — | 60 |
+| 24 | JSON — parseFromSlice into struct and dynamic Value | 3 | 20 | 30 | A (+30) | — | 60 |
+| 25 | JSON — serialize with json.fmt, round-trip, parse options | 3 | 20 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-25: Perfect (60/60 each)**
+- All 25 exercises compiled and passed tests on first attempt
+- Zero compile failures, zero test failures
+- Code quality: clean, well-structured, uses proper 0.15.2 APIs throughout
+- Key patterns demonstrated correctly:
+  - ArrayList `.empty` init with per-method allocator passing
+  - AutoHashMap/StringHashMap `.init(gpa)` with stored allocator
+  - `getOrPut` upsert pattern with `found_existing` / `value_ptr.*`
+  - Iterator pattern: `while (it.next()) |entry|` with `key_ptr.*` / `value_ptr.*`
+  - `mem.splitScalar` / `mem.splitSequence` / `mem.tokenizeScalar` / `mem.tokenizeAny`
+  - `fmt.bufPrint` / `fmt.allocPrint` / `fmt.comptimePrint`
+  - `sort.pdq` with `sort.asc(T)` / `sort.desc(T)` and custom comparators
+  - JSON `parseFromSlice` into structs and dynamic `Value`
+  - JSON serialization via `json.fmt` + `{f}` specifier with `allocPrint`/`bufPrint`
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| (none) | 0 | 0 | — | — |
+
+**Total correctness deductions:** 0
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $1.70 (11 turns) |
+| Run 1 baseline | $3.06 (34 turns) |
+| Cost reduction | 44.4% |
+| Efficiency score | 105 (capped from +54.4 raw) |
+| **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
