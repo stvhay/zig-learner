@@ -1,55 +1,55 @@
 {
-  "run": 1,
+  "run": "best",
   "model": "claude-opus-4-6",
-  "generated_by": "extract-baselines.py",
+  "generated_by": "min(run1, run2)",
   "lessons": {
     "1": {
       "title": "Core Language Fundamentals",
-      "quiz": "01-foundation.md \u00a71",
+      "quiz": "01-foundation.md §1",
       "level": 0,
-      "turns": 60,
-      "cost": 2.91,
-      "source": "transcript"
+      "turns": 16,
+      "cost": 1.04,
+      "source": "run2"
     },
     "2": {
       "title": "Standard Library Essentials",
-      "quiz": "01-foundation.md \u00a72",
+      "quiz": "01-foundation.md §2",
       "level": 0,
-      "turns": 34,
-      "cost": 3.06,
-      "source": "transcript"
+      "turns": 11,
+      "cost": 1.70,
+      "source": "run2"
     },
     "3": {
       "title": "Error Handling & Allocators",
-      "quiz": "01-foundation.md \u00a73",
+      "quiz": "01-foundation.md §3",
       "level": 0,
-      "turns": 49,
-      "cost": 4.57,
-      "source": "transcript"
+      "turns": 23,
+      "cost": 3.24,
+      "source": "run2"
     },
     "4": {
       "title": "Comptime & Metaprogramming",
-      "quiz": "01-foundation.md \u00a74",
+      "quiz": "01-foundation.md §4",
       "level": 0,
-      "turns": 56,
-      "cost": 3.95,
-      "source": "transcript"
+      "turns": 21,
+      "cost": 2.11,
+      "source": "run2"
     },
     "5": {
       "title": "Idioms & Design Patterns",
-      "quiz": "01-foundation.md \u00a75",
+      "quiz": "01-foundation.md §5",
       "level": 0,
-      "turns": 39,
-      "cost": 3.54,
-      "source": "transcript"
+      "turns": 14,
+      "cost": 1.50,
+      "source": "run2"
     },
     "6": {
       "title": "Concurrency & Threading",
-      "quiz": "01-foundation.md \u00a76",
+      "quiz": "01-foundation.md §6",
       "level": 0,
-      "turns": 56,
-      "cost": 6.71,
-      "source": "transcript"
+      "turns": 14,
+      "cost": 1.77,
+      "source": "run2"
     },
     "7": {
       "title": "Hex Dump",
@@ -57,7 +57,7 @@
       "level": 1,
       "turns": 47,
       "cost": 3.44,
-      "source": "transcript"
+      "source": "run1"
     },
     "8": {
       "title": "Huffman Compression",
@@ -65,7 +65,7 @@
       "level": 1,
       "turns": 53,
       "cost": 3.85,
-      "source": "transcript"
+      "source": "run1"
     },
     "9": {
       "title": "Stream Editor",
@@ -73,7 +73,7 @@
       "level": 1,
       "turns": 68,
       "cost": 6.39,
-      "source": "transcript"
+      "source": "run1"
     },
     "10": {
       "title": "HTTP Server",
@@ -81,7 +81,7 @@
       "level": 1,
       "turns": 66,
       "cost": 4.73,
-      "source": "transcript"
+      "source": "run1"
     },
     "11": {
       "title": "Load Balancer",
@@ -89,7 +89,7 @@
       "level": 1,
       "turns": 37,
       "cost": 3.67,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "12": {
       "title": "Git Internals",
@@ -97,7 +97,7 @@
       "level": 2,
       "turns": 61,
       "cost": 6.79,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "13": {
       "title": "Password Manager",
@@ -105,7 +105,7 @@
       "level": 3,
       "turns": 99,
       "cost": 11.55,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "14": {
       "title": "IRC Client",
@@ -113,7 +113,7 @@
       "level": 1,
       "turns": 47,
       "cost": 4.51,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "15": {
       "title": "MCP Server",
@@ -121,7 +121,7 @@
       "level": 3,
       "turns": 81,
       "cost": 9.26,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "16": {
       "title": "LSP Server",
@@ -129,7 +129,7 @@
       "level": 2,
       "turns": 61,
       "cost": 7.49,
-      "source": "session-cost.py"
+      "source": "run1"
     },
     "17": {
       "title": "Redis Server",
@@ -137,7 +137,7 @@
       "level": 3,
       "turns": 67,
       "cost": 8.5,
-      "source": "session-cost.py"
+      "source": "run1"
     }
   }
 }
