@@ -90,9 +90,21 @@ Training data shows 0.14 patterns. These are the critical 0.15.2 changes. **For 
 ### I/O (0.15.2 — NOT getStdOut/getStdErr/getStdIn!)
 
 ```zig
-var buf: [4096]u8 = undefined;
-var w = std.fs.File.stdout().writer(&buf);
+// Writing
+var wbuf: [4096]u8 = undefined;
+var w = std.fs.File.stdout().writer(&wbuf);
 const stdout = &w.interface;  // flush() on interface, not w
+
+// Reading lines
+var rbuf: [4096]u8 = undefined;
+var r = file.reader(&rbuf);
+while (r.interface.takeDelimiter('\n')) |line| { ... } // null on EOF
+
+// AtomicFile (safe write-then-rename)
+var af = try std.fs.cwd().atomicFile(path, .{ .mode = stat.mode });
+defer af.deinit();
+// write to af.file ...
+try af.finish();
 ```
 
 ### Build System

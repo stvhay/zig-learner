@@ -324,6 +324,20 @@ fn readData(stream: anytype, alloc: Allocator) ![]u8 {
 }
 ```
 
+## readUntilDelimiterOrEof does not exist on File.Reader
+
+In 0.15.2, `File.reader(&buf)` returns a `File.Reader` whose `.interface` field (`std.Io.Reader`) uses `takeDelimiter()`, NOT `readUntilDelimiterOrEof`.
+
+```zig
+// WRONG (0.14 pattern)
+const line = try reader.readUntilDelimiterOrEof(&buf, '\n');
+
+// CORRECT (0.15.2)
+var read_buf: [4096]u8 = undefined;
+var r = file.reader(&read_buf);
+const line = r.interface.takeDelimiter('\n'); // returns ?[]u8, null on EOF
+```
+
 ## ArrayListUnmanaged.items is not a transferable allocation
 
 `ArrayListUnmanaged.items` returns a slice into the list's over-allocated internal buffer. The slice length equals the number of appended elements, but the underlying allocation is larger (capacity-sized). Calling `allocator.free(list.items)` panics with "Invalid free."

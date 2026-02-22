@@ -813,3 +813,48 @@ Phase 2 subagent consumed $0.990 over 20 turns but produced no grades or code ar
 | Total cost | N/A (interrupted session) |
 | Baseline | $4.51 (47 turns) |
 | Efficiency score | N/A |
+
+---
+
+## Lesson 09: Stream Editor (Level 1, 15 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | Line-by-Line Reader | 15 | A (+30) | +10 | 2 | 55 |
+| 2 | Basic Substitution | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | Line Number Addressing & p | 30 | A (+30) | +10 | 0 | 70 |
+| 4 | Regex Pattern Matching | 30 | A (+30) | +10 | 0 | 70 |
+| 5 | Regex in Substitution | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | Delete and Quit Commands | 30 | A (+30) | +10 | 0 | 70 |
+| 7 | G, =, y Commands | 30 | A (+30) | +10 | 0 | 70 |
+| 8 | a, i, c Commands | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Multiple Commands (-e, -f) | 30 | A (+30) | +10 | 0 | 70 |
+| 10 | Regex Range Addresses | 20 | A (+30) | +10 | 0 | 60 |
+| 11 | In-Place Editing (-i) | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | Substitution Flags (p, N) | 30 | A (+30) | +10 | 0 | 70 |
+
+**Average exercise score:** 67.92 / 80
+**Lesson score:** (67.92 / 80) x 15 = **12.74 / 15 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| Q1 | `ArrayList.init(alloc)` instead of `.empty` | Use `.empty` with allocator-per-method | Known (-10) |
+| Q1 | `readUntilDelimiterOrEof` doesn't exist on `File.Reader` | Use `r.interface.takeDelimiter('\n')` | New (-5) |
+
+### Reflection
+
+10/12 exercises scored maximum. Phase 2 was flawless (zero compile failures). Q1 had 2 compile failures: ArrayList.init repeat mistake (-10) and new readUntilDelimiterOrEof API gap (-5). Q10 lost 10 correctness for regex range behavioral fix. New gotcha added for takeDelimiter API. SKILL.md I/O section updated with reader pattern.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Total turns | N/A (restart, interrupted session) |
+| Total cost | N/A |
+| Baseline | $6.39 (68 turns) |
+| Efficiency score | N/A |
