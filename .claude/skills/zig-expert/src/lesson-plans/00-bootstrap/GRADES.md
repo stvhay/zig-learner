@@ -267,3 +267,191 @@ Each exercise is scored on three components (max 105, min 0):
 | Context replay | $0.44 |
 | Cache write | $0.77 |
 | Output | $0.38 |
+
+---
+
+## Lesson 05: Idioms & Design Patterns (Level 0, 5 pts)
+
+### Summary
+
+| # | Topic | Pts | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|-----|---------|---------|------------|---------------|-------|
+| 1 | Generic Stack(T) | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 2 | Multi-type instantiation | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 3 | Vtable interface — basic | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 4 | Vtable — polymorphic array | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 5 | Iterator — next() ?T | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 6 | Filter iterator adapter | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 7 | Writer — GenericWriter custom | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 8 | Writer — ArrayList + fbs | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 9 | Allocator convention | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 10 | Arena scoped lifetime | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 11 | RAII / defer | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 12 | errdefer partial init | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 13 | Sentinel slices — properties | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 14 | Sentinel — mem.span, sliceTo | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 15 | @fieldParentPtr — basic | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 16 | @fieldParentPtr — intrusive list | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 17 | BoundedBuffer(T, cap) | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 18 | Comptime validation + comptimePrint | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 19 | Tagged union state machine | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 20 | Traffic light — exhaustive switch | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 21 | Options struct — defaults | 5 | 30 | A (+30) | -18 | 0 | 42 |
+| 22 | Builder-style chaining | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 23 | Type-erased callbacks | 10 | 30 | A (+30) | -18 | 0 | 42 |
+| 24 | Deque — generic container + iterator | 20 | 20 | A (+30) | -18 | 1 | 32 |
+| 25 | Event system — vtable + callbacks | 20 | 30 | A (+30) | -18 | 0 | 42 |
+
+**Average exercise score:** (42 x 24 + 32) / 25 = 1040 / 25 = 41.60 / 105
+
+**Lesson score:** (41.60 / 100) x 5 = **2.08 / 5 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| 24 | Parameter `capacity` shadows method `capacity` | Rename parameter to `cap` | Known (gotchas.md: "Function parameter shadows method name") |
+
+**Note:** This is a REPEATED mistake — the "Function parameter shadows method name" pattern is already documented in `gotchas.md`. Deduction is -10 (repeated), not -5 (new). The pre-completion checklist in SKILL.md also lists "Parameter name same as method name?" — this check was not followed.
+
+### Per-Exercise Detail
+
+#### Ex 1: Generic Stack(T) (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — clean first compile, tests pass
+- **Quality:** A (+30) — Clean generic pattern, proper error return for overflow, optional for pop
+
+#### Ex 2: Multi-type instantiation (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — All three type instantiations work, type distinctness verified
+- **Quality:** A (+30) — Demonstrates type-level generics with type inequality check
+
+#### Ex 3: Vtable interface — basic (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Fat pointer pattern works, string returned through vtable
+- **Quality:** A (+30) — Clean separation of interface/implementation, proper @ptrCast/@alignCast
+
+#### Ex 4: Vtable — polymorphic array (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Two implementors in array, runtime polymorphism verified
+- **Quality:** A (+30) — Well-structured, each type has own vtable const + helper method
+
+#### Ex 5: Iterator — next() ?T (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Countdown yields 5,4,3,2,1 correctly, sum=15
+- **Quality:** A (+30) — Idiomatic ?T return, while-optional consumption
+
+#### Ex 6: Filter iterator adapter (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Even filter produces {2,4,6,8}
+- **Quality:** A (+30) — Clean predicate function pointer, proper skip logic
+
+#### Ex 7: Writer — GenericWriter custom (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Uppercase conversion works through GenericWriter
+- **Quality:** A (+30) — Uses GenericWriter properly
+
+#### Ex 8: Writer — ArrayList + fixedBufferStream (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Both writers produce identical "x=10, y=20"
+- **Quality:** A (+30) — Uses 0.15.2 APIs: `list.writer(gpa)`, `fbs.writer()`, `fbs.getWritten()`
+
+#### Ex 9: Allocator convention (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — DynamicString allocates and copies correctly
+- **Quality:** A (+30) — Proper init/deinit pair, allocator-as-parameter convention
+
+#### Ex 10: Arena scoped lifetime (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Multiple allocations, single deinit, no leaks
+- **Quality:** A (+30) — Demonstrates different allocation types (u8, u32), page_allocator backing
+
+#### Ex 11: RAII / defer (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Nested scope cleanup verified via shared counter
+- **Quality:** A (+30) — Clean init/deinit pattern with shared state tracking
+
+#### Ex 12: errdefer partial init (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Error path frees first buffer, success path returns both
+- **Quality:** A (+30) — Proper errdefer placement, testing.allocator detects leaks
+
+#### Ex 13: Sentinel slices — properties (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — All 4 sentinel properties verified plus allocSentinel
+- **Quality:** A (+30) — Comprehensive: len, null byte, coercions, heap sentinel
+
+#### Ex 14: Sentinel — mem.span, sliceTo (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — mem.span and sliceTo both produce expected slices
+- **Quality:** A (+30) — Correct use of [*:0] pointer types, proper sentinel construction
+
+#### Ex 15: @fieldParentPtr — basic (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Parent recovered from embedded hook field
+- **Quality:** A (+30) — Clean helper method, pointer identity verified
+
+#### Ex 16: @fieldParentPtr — intrusive list (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Forward traversal collects all 3 names in order
+- **Quality:** A (+30) — Doubly-linked list, proper node linking, @fieldParentPtr in traversal
+
+#### Ex 17: BoundedBuffer(T, cap) (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Full/empty checks, overflow error, LIFO pop order
+- **Quality:** A (+30) — Two comptime parameters, all 4 methods clean
+
+#### Ex 18: Comptime validation + comptimePrint (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — @compileError for invalid sizes, comptimePrint description works
+- **Quality:** A (+30) — Matrix with 2D array, get/set methods, comptime description const
+
+#### Ex 19: Tagged union state machine (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Success and failure paths fully verified
+- **Quality:** A (+30) — All 4 states, payload-carrying variants, exhaustive switch in advance
+
+#### Ex 20: Traffic light — exhaustive switch (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Cycles red->green->yellow->red
+- **Quality:** A (+30) — Exhaustive switch, meta.activeTag for verification
+
+#### Ex 21: Options struct — defaults (5pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — All three initialization patterns verified
+- **Quality:** A (+30) — Clean struct defaults, 3 test cases
+
+#### Ex 22: Builder-style chaining (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Full query string matches expected output
+- **Quality:** A (+30) — Method chaining via *Self return, fixedBufferStream for building
+
+#### Ex 23: Type-erased callbacks (10pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Accumulator incremented 3 times correctly
+- **Quality:** A (+30) — Clean @ptrCast/@alignCast recovery, proper callback struct
+
+#### Ex 24: Deque — generic container + iterator (20pts)
+- **Compile attempts:** 1 failure (parameter `capacity` shadows method `capacity`)
+- **Correctness:** 20/30 — -10 for repeated compile failure (pattern in gotchas.md); tests pass after fix
+- **Quality:** A (+30) — Ring buffer implementation, front/back push/pop, iterator struct
+- **Reflection:** The pre-completion checklist explicitly asks "Parameter name same as method name?" This check was skipped. The gotcha has been documented since Run 2. This is a discipline failure, not a knowledge gap.
+
+#### Ex 25: Event system — vtable + callbacks (20pts)
+- **Compile attempts:** 0 failures
+- **Correctness:** 30/30 — Logger captures event names, Counter increments per event
+- **Quality:** A (+30) — Full vtable pattern for Listener, EventBus with fixed array, two distinct implementors
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Turns | 22 |
+| Total cost | $1.92 |
+| Baseline (Run 2) | $1.50 (14 turns) |
+| Cost reduction | -28% (over baseline) |
+| Efficiency score | -18 |
+| System replay | $0.13 |
+| Context replay | $0.63 |
+| Cache write | $0.83 |
+| Output | $0.33 |
