@@ -268,3 +268,74 @@ Note: Module-level `const` is already comptime — do NOT add `comptime` there (
 | Return `*const [N]u8`, not `[]const u8` | "cannot return comptime value at runtime" | Helper fn computes N; return pointer to array |
 | Use `comptime var` + `inline for` | Plain var/for don't work in comptime construction | Both keywords required |
 | Compute lengths inside comptime blocks | Local const outside block not recognized inside | Assign inside the comptime block |
+
+## Tree/graph node deallocation requires traversal — GPA detects leaks
+
+When building tree or graph structures via `allocator.create(Node)` for individual nodes, `deinit()` on the container (PriorityQueue, ArrayList of root pointers, etc.) does NOT free the nodes themselves. You must implement a recursive/iterative free function.
+
+```zig
+// WRONG: only frees the priority queue's internal array, not the nodes
+pq.deinit();
+
+// CORRECT: walk the tree and free each node
+fn freeTree(allocator: std.mem.Allocator, node: ?*TreeNode) void {
+    const n = node orelse return;
+    freeTree(allocator, n.left);
+    freeTree(allocator, n.right);
+    allocator.destroy(n);
+}
+defer freeTree(gpa, root);
+```
+
+## std.process.argv() does not exist
+
+`std.process.argv()` is not a valid Zig 0.15.2 function. Three ways to get command-line arguments:
+
+- `std.process.args()` — returns `ArgIterator`, no allocator needed (POSIX only)
+- `std.process.argsWithAllocator(alloc)` — returns `ArgIterator`, cross-platform
+- `std.process.argsAlloc(alloc)` — returns `[][:0]u8` slice (must free with `argsFree`)
+
+```zig
+// Simple: iterator, no allocation
+var args = std.process.args();
+_ = args.skip(); // skip program name
+const port_str = args.next() orelse return error.MissingArg;
+```
+
+## Returning a slice of a stack-local buffer — use-after-return
+
+If a function declares a local buffer on the stack and returns a slice of it, the slice becomes a dangling pointer when the function returns. GPA's canary check may detect this as "Invalid free."
+
+```zig
+// WRONG: returned slice points to stack memory freed on return
+fn readData(stream: anytype) ![]u8 {
+    var buf: [4096]u8 = undefined;
+    const n = try stream.read(&buf);
+    return buf[0..n]; // DANGLING
+}
+
+// CORRECT: heap-allocate and return owned memory
+fn readData(stream: anytype, alloc: Allocator) ![]u8 {
+    var buf: [4096]u8 = undefined;
+    const n = try stream.read(&buf);
+    const result = try alloc.alloc(u8, n);
+    @memcpy(result, buf[0..n]);
+    return result; // caller owns and must free
+}
+```
+
+## ArrayListUnmanaged.items is not a transferable allocation
+
+`ArrayListUnmanaged.items` returns a slice into the list's over-allocated internal buffer. The slice length equals the number of appended elements, but the underlying allocation is larger (capacity-sized). Calling `allocator.free(list.items)` panics with "Invalid free."
+
+```zig
+// WRONG: .items slice doesn't match allocation size
+var list: std.ArrayListUnmanaged(u8) = .empty;
+try list.append(gpa, 'a');
+const result = list.items; // len=2, but allocation may be capacity=8
+// gpa.free(result) panics
+
+// CORRECT: .toOwnedSlice reallocates to exact size
+const result = try list.toOwnedSlice(gpa);
+defer gpa.free(result); // safe
+```

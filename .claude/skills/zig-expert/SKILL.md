@@ -77,13 +77,15 @@ Training data shows 0.14 patterns. These are the critical 0.15.2 changes. **For 
 | `PriorityQueue(T, ctx, cmp)` | `.init(gpa, ctx)` | `.deinit()` | `.add(item)` — stored allocator |
 | `GPA(.{})` | `.init` (value literal) | `.deinit()` | N/A |
 
-### Memory Ownership (5 rules)
+### Memory Ownership (7 rules)
 
 1. **One owner per resource.** If `errdefer allocator.free(x)` is active, never also manually free `x` before returning an error — double-free.
 2. **Defer-free intermediates.** When A allocates and passes to B which also allocates, A's result leaks unless freed: `defer allocator.free(a_result)`.
 3. **JSON arena lifetime.** Strings from `parseFromSlice` point into the parsed arena. After `parsed.deinit()`, they dangle. Use `.allocate = .alloc_always` or dupe.
 4. **No self-referential slices in value structs.** Slice dangles when struct returned by value. Use `len: usize` + method.
 5. **Nested slice constness.** `[][]u8` does not coerce to `[][]const u8`. Allocate `[]const u8` items directly.
+6. **`ArrayListUnmanaged.items` is NOT a transferable allocation.** `.items` returns a slice into the list's over-allocated internal buffer. `allocator.free(list.items)` panics — use `.toOwnedSlice(allocator)` to get an exact-sized, independently-freeable allocation.
+7. **Never return a slice of a stack-local buffer.** The slice becomes a dangling pointer when the function returns. Either heap-allocate, or have the caller provide the buffer (out-parameter pattern).
 
 ### I/O (0.15.2 — NOT getStdOut/getStdErr/getStdIn!)
 

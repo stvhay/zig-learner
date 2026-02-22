@@ -636,3 +636,136 @@ Phase 2 subagent consumed $0.990 over 20 turns but produced no grades or code ar
 | Baseline (Run 1) | $4.73 (66 turns) |
 | Cost reduction | +50.1% |
 | Efficiency score | +20 (capped) |
+
+---
+
+## Lesson 08: Huffman Compression (Level 1, 15 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | Byte Frequencies | 30 | A (+30) | +10 | 0 | 70 |
+| 2 | Priority Queue | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | Build Tree | 30 | A (+30) | +10 | 0 | 70 |
+| 4 | Generate Codes | 30 | A (+30) | +10 | 0 | 70 |
+| 5 | Bit Writer | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | Encode File | 30 | A (+30) | +10 | 0 | 70 |
+| 7 | Read Header & Rebuild Tree | 30 | A (+30) | +10 | 0 | 70 |
+| 8 | Bit Reader | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Decode Compressed Data | 30 | A (+30) | +10 | 0 | 70 |
+| 10 | Round-Trip Verification | 30 | A (+30) | +10 | 0 | 70 |
+| 11 | Edge Cases | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | Performance & Final CLI | 25 | A (+30) | +10 | 1 | 65 |
+
+**Average exercise score:** (70 x 11 + 65) / 12 = 835 / 12 = 69.58 / 80
+**Lesson score:** (69.58 / 80) x 15 = **13.05 / 15 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| 12 | GPA detected leaked TreeNode allocations — nodes via `gpa.create(TreeNode)` not freed | Added `freeTree` recursive deallocation with `defer` | New |
+
+### Reflection
+
+11/12 clean first compiles. The full Huffman pipeline was implemented with near-zero friction. One failure (Q12): tree node memory leak detected by GPA — `PriorityQueue.deinit()` frees its internal array but not heap-allocated nodes. A recursive `freeTree` function was needed. New gotcha added.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Total turns | N/A (interrupted session) |
+| Total cost | N/A (interrupted session) |
+| Baseline | $3.85 (53 turns) |
+| Efficiency score | N/A |
+
+---
+
+## Lesson 11: Load Balancer (Level 1, 15 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | TCP Proxy | 30 | A (+30) | +10 | 0 | 70 |
+| 2 | Log Incoming Requests | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | Concurrent Client Handling | 30 | A (+30) | +10 | 0 | 70 |
+| 4 | Round-Robin Multiple Backends | 25 | A (+30) | +10 | 1 | 65 |
+| 5 | Backend Connection Error Handling | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | Health Check — Background Polling | 30 | A (+30) | +10 | 0 | 70 |
+| 7 | Skip Unhealthy Backends | 30 | A (+30) | +10 | 0 | 70 |
+| 8 | X-Forwarded-For Header | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Read Full HTTP Responses | 25 | B (+20) | +10 | 1 | 55 |
+| 10 | Connection Timeouts | 30 | A (+30) | +10 | 0 | 70 |
+| 11 | Graceful Shutdown | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | Statistics Endpoint | 30 | A (+30) | +10 | 0 | 70 |
+
+**Average exercise score:** (70 x 10 + 65 + 55) / 12 = 820 / 12 = 68.33 / 80
+**Lesson score:** (68.33 / 80) x 15 = **12.81 / 15 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| Q4 | `std.process.argv()` does not exist in 0.15.2 | Use `std.process.args()` returning `ArgIterator` | New |
+| Q9 | Use-after-return: returned slices of stack-local buffer, GPA "Invalid free" | Heap-allocate response buffer, `realloc` to exact size | New |
+
+### Reflection
+
+10/12 clean first attempts. Two novel failures: Q4 hallucinated `argv()` (correct API is `args()`), Q9 returned slice of stack-local buffer causing use-after-return. Both added as new gotcha entries. Existing networking, concurrency, and signal handling knowledge was fully sufficient for 10/12.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 1 (all 12 exercises) |
+| Total turns | N/A (interrupted session) |
+| Total cost | N/A (interrupted session) |
+| Baseline | $3.67 (37 turns) |
+| Efficiency score | N/A |
+
+---
+
+## Lesson 12: Git Internals (Level 2, 30 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | SHA-1 Hashing | 30 | A (+30) | +10 | 0 | 70 |
+| 2 | Write Blob Objects | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | Cat-file | 30 | A (+30) | +10 | 0 | 70 |
+| 4 | Init Command | 30 | A (+30) | +10 | 0 | 70 |
+| 5 | Write Tree Objects | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | Write Index File | 30 | A (+30) | +10 | 0 | 70 |
+| 7 | Read Index File | 30 | A (+30) | +10 | 0 | 70 |
+| 8 | Commit Command | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Status Command | 25 | A (+30) | +10 | 1 | 65 |
+| 10 | Log Command | 30 | A (+30) | +10 | 0 | 70 |
+| 11 | Tree with Subdirectories | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | Diff Command | 30 | A (+30) | +10 | 0 | 70 |
+
+**Average exercise score:** (70 x 11 + 65) / 12 = 835 / 12 = 69.58 / 80
+**Lesson score:** (69.58 / 80) x 30 = **26.09 / 30 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| Q9 | "Invalid free" — used `ArrayListUnmanaged.items` instead of `.toOwnedSlice(gpa)` | `.toOwnedSlice(gpa)` reallocates to exact size | New |
+
+### Reflection
+
+11/12 clean first compiles. All exercises verified against real `git` commands. One failure (Q9): `ArrayListUnmanaged.items` returns a view into over-allocated buffer — `free()` panics on size mismatch. Must use `.toOwnedSlice()` when transferring ownership. Added as SKILL.md Rule 6 and new gotcha entry.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Total turns | N/A (interrupted session) |
+| Total cost | N/A (interrupted session) |
+| Baseline | $6.79 (61 turns) |
+| Efficiency score | N/A |
