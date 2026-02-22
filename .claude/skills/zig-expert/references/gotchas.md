@@ -145,6 +145,23 @@ const x = blk: {
 };
 ```
 
+## @enumFromInt needs explicit result type
+
+`@enumFromInt` returns `anytype` — the compiler infers the enum type from context. When passed directly to a generic function like `expectEqual`, there is no type context and compilation fails.
+
+```zig
+const Color = enum { red, green, blue };
+
+// WRONG: no type context — compiler error
+try std.testing.expectEqual(Color.green, @enumFromInt(1));
+
+// CORRECT: bind to typed const first
+const color: Color = @enumFromInt(1);
+try std.testing.expectEqual(Color.green, color);
+```
+
+Same applies to `@intToEnum` replacement builtins and any `anytype`-returning builtin used inline in a generic call.
+
 ## Comptime checklist (5 rules)
 
 | Rule | Error if violated | Fix |

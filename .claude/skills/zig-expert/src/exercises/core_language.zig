@@ -197,7 +197,26 @@ test "@typeInfo: .int.bits is u16, not usize" {
     }
 }
 
-// 12. Comptime lookup table generation
+// 12. @enumFromInt requires explicit result type when used in generic context
+// Gotcha: @enumFromInt returns anytype — compiler needs type context.
+// Inline in expectEqual (which takes anytype) fails. Bind to typed const first.
+test "@enumFromInt: explicit type binding for generic contexts" {
+    const Color = enum(u8) { red = 0, green = 1, blue = 2 };
+
+    // CORRECT: bind to typed const — compiler knows the target enum
+    const c: Color = @enumFromInt(1);
+    try testing.expectEqual(Color.green, c);
+
+    // CORRECT: @as also provides type context
+    try testing.expectEqual(Color.blue, @as(Color, @enumFromInt(2)));
+
+    // Round-trip: @intFromEnum -> @enumFromInt
+    const val = @intFromEnum(Color.red);
+    const back: Color = @enumFromInt(val);
+    try testing.expectEqual(Color.red, back);
+}
+
+// 13. Comptime lookup table generation
 fn comptimePowersOfTwo(comptime n: usize) [n]u64 {
     var result: [n]u64 = undefined;
     for (&result, 0..) |*slot, i| {
