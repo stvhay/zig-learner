@@ -421,14 +421,14 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | `Semaphore` | `.{ .permits = N }` | `.wait()` (decrement), `.post()` (increment) |
 | `WaitGroup` | `.{}` | `.start()` before spawn, `.finish()` in worker via defer, `.wait()` |
 | `ResetEvent` | `.{}` | `.set()` / `.wait()` — never `.reset()` while threads wait |
-| `Thread.Pool` | `pool.init(.{ .allocator, .n_jobs })` | `try pool.spawn(fn, args)` — returns error union! |
+| `Thread.Pool` | `pool.init(.{ .allocator, .n_jobs })` | `pool.spawnWg(&wg, fn, .{args})` — auto start/finish |
 
 **Atomics** (`std.atomic.Value(T)`):
 - `fetchAdd`/`fetchSub`/`fetchOr`/`fetchAnd`/`fetchXor`/`swap` — all return **OLD** value
 - `cmpxchgStrong(expected, new, succ_ord, fail_ord)` → `?T` (`null` = success, value = actual on failure)
 - `cmpxchgWeak` — may spuriously fail, **must** be in retry loop
 - Memory ordering: `.release` on store pairs with `.acquire` on load for happens-before
-- `Thread.Pool.spawn` returns error union — must use `try`; pool does NOT call `wg.finish()` for you
+- `Thread.Pool` has `spawnWg(&wg, fn, .{args})` only — no plain `spawn()`. Pool auto-calls `wg.start()` and `wg.finish()`. `n_jobs` is `?usize` (null = CPU count auto-detect).
 - `std.Thread.sleep(ns)` for sleep — NOT `std.time.sleep()` (does not exist in 0.15.2)
 
 ## Zig-Specific Style

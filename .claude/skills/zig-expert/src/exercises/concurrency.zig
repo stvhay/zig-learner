@@ -145,15 +145,17 @@ test "ResetEvent for signaling between threads" {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Thread.Pool with WaitGroup (worker calls wg.finish())
+// 6. Thread.Pool with spawnWg (pool auto-manages wg.start/finish)
 // ---------------------------------------------------------------------------
 
-fn poolTask(wg: *Thread.WaitGroup, results: []Atomic.Value(u32), idx: usize) void {
-    defer wg.finish(); // CRITICAL: worker must call this
+// NOTE: Thread.Pool in 0.15.2 uses spawnWg, NOT spawn.
+// spawnWg handles wg.start() and wg.finish() automatically.
+// The worker should NOT call wg.finish() — pool does it.
+fn poolTask(results: []Atomic.Value(u32), idx: usize) void {
     results[idx].store(@intCast(idx + 1), .release);
 }
 
-test "Thread.Pool with WaitGroup" {
+test "Thread.Pool with spawnWg" {
     const allocator = testing.allocator;
     var pool: Thread.Pool = undefined;
     try pool.init(.{ .allocator = allocator, .n_jobs = 2 });
@@ -165,8 +167,8 @@ test "Thread.Pool with WaitGroup" {
 
     var wg: Thread.WaitGroup = .{};
     for (0..n) |i| {
-        wg.start();
-        try pool.spawn(poolTask, .{ &wg, &results, i });
+        // spawnWg calls wg.start() before dispatch and wg.finish() after fn returns
+        pool.spawnWg(&wg, poolTask, .{ &results, i });
     }
     wg.wait();
     for (results, 0..) |r, i| {

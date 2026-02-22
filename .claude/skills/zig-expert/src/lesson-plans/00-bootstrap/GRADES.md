@@ -455,3 +455,108 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | 57.6% |
 | Efficiency score | 67.6 (raw: 40 + 27.6) |
 | **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
+
+## Lesson 06: Concurrency & Threading
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 25 |
+| Max points | 200 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency (83.7) | Score |
+|---|-------|------|-----|-------------------|---------|-------------------|-------|
+| 1 | Thread.spawn and join — basic worker pattern | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 2 | Multiple threads — parallel writes to separate result slots | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 3 | threadlocal variables — per-thread isolation | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 4 | Thread.getCpuCount and Thread.sleep — utility functions | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 5 | Mutex — lock/unlock with defer | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 6 | Condition variable — basic signal and wait | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 7 | Atomic.Value — init, load, store | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 8 | Atomic fetchAdd/fetchSub — returns the OLD value | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 9 | Atomic bitwise — fetchOr, fetchAnd, fetchXor | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 10 | Atomic swap — unconditional exchange | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 11 | WaitGroup — start/finish/wait lifecycle | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 12 | ResetEvent — set/wait signaling between threads | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 13 | Semaphore — permits, wait, post | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 14 | spinLoopHint and cache_line — low-level hints | 1 | 5 | 30 | A (+30) | +83.7 | 105 |
+| 15 | Mutex protecting shared state across threads | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 16 | Condition variable — producer-consumer with spurious wakeup guard | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 17 | cmpxchgStrong — success/failure return semantics | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 18 | Atomic lock-free counter across threads | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 19 | Memory ordering — acquire/release publish pattern | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 20 | Thread.Pool with WaitGroup — spawnWg auto start/finish | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 21 | RwLock — concurrent readers, exclusive writer | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 22 | cmpxchgWeak retry loop — CAS spin pattern | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 23 | Multi-phase thread coordination with atomics | 2 | 10 | 30 | A (+30) | +83.7 | 105 |
+| 24 | Lock-free stack — generic CAS-based push/pop | 3 | 20 | 30 | A (+30) | +83.7 | 105 |
+| 25 | Barrier + pipeline — multi-stage parallel computation | 3 | 20 | 30 | A (+30) | +83.7 | 105 |
+
+### Per-Exercise Scoring Detail
+
+**Exercises 1-25: Perfect (60/60 each)**
+- All 25 exercises compiled and passed tests on first attempt
+- Zero compile failures, zero test failures
+- Code quality: clean, well-structured, demonstrates all required concurrency concepts
+- Key patterns demonstrated correctly:
+  - `Thread.spawn(.{}, fn, .{args})` with `.join()` lifecycle
+  - Multiple threads writing to disjoint slots (no sync needed)
+  - `threadlocal var` for per-thread isolation
+  - `Thread.getCpuCount()` (error union) and `Thread.sleep(ns)` (u64 nanoseconds)
+  - `Mutex` with `.{}` static init, `.lock()` / `defer .unlock()` pattern
+  - `Condition` with `.wait(&mutex)` in **while loop** (spurious wakeup guard), `.signal()`
+  - `std.atomic.Value(T)` with `.init()`, `.load()`, `.store()` and `AtomicOrder`
+  - `fetchAdd`/`fetchSub` returning OLD value (gotcha exercise)
+  - `fetchOr`/`fetchAnd`/`fetchXor` returning OLD value
+  - `swap` for unconditional atomic exchange
+  - `WaitGroup`: `.start()` before spawn, `defer .finish()` in worker, `.wait()` in main
+  - `ResetEvent`: `.set()` / `.wait()` one-shot signaling
+  - `Semaphore`: `.{ .permits = N }`, `.wait()` decrement, `.post()` increment
+  - `spinLoopHint()` and `cache_line` for low-level optimization hints
+  - `SharedCounter` struct with Mutex protecting shared state across 4 threads
+  - `BoundedQueue` producer-consumer with `Condition` while-loop guards
+  - `cmpxchgStrong` return semantics: `?T` — `null` = success, value = failure
+  - Lock-free atomic counter with `.monotonic` fetchAdd across 4 threads
+  - Acquire/release publish pattern for happens-before ordering
+  - `Thread.Pool` with `spawnWg` (pool manages start/finish) + manual WaitGroup pattern
+  - `RwLock`: `.lockShared()`/`.unlockShared()` for readers, `.lock()`/`.unlock()` for writers
+  - `cmpxchgWeak` in retry loop (may spuriously fail), used for CAS-max pattern
+  - Multi-phase coordination with atomic barrier counter + `spinLoopHint()`
+  - Generic `LockFreeStack(T)` with CAS-based push/pop using `cmpxchgWeak`
+  - Reusable `Barrier` struct with `ResetEvent` for multi-stage pipeline
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| (none) | 0 | 0 | — | — |
+
+**Total correctness deductions:** 0
+
+### API Discovery Notes
+
+- `Thread.Pool` in 0.15.2 uses `pool.spawnWg(&wg, fn, .{args})` which handles both `wg.start()` and `wg.finish()` automatically. There is no plain `pool.spawn()` method. The "manual finish() obligation" applies when using `Thread.spawn` directly with a WaitGroup (start before spawn, defer finish in worker).
+- `Thread.Pool.init` takes `*Pool` (self-pointer pattern) and `Options` struct with `.allocator` and `.n_jobs` (`?usize`, null = auto-detect from CPU count).
+- `Atomic.Value(?*Node)` works correctly for nullable pointer atomics in CAS loops.
+- `ResetEvent.wait()` blocks all non-last arrivals; `ResetEvent.set()` wakes them all (one-shot).
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Run 2 cost | $1.77 (14 turns) |
+| Run 1 baseline | $6.71 (56 turns) |
+| Cost reduction | 73.7% |
+| Efficiency score | 105 (capped from +83.7 raw) |
+| **Lesson score** | **5.25/5 pts** (Level 0, 5 pt pool) |
+
+### Score Computation
+
+- All 25 exercises: Correctness 30 + Quality A (+30) + Efficiency 83.7 = 143.7, capped at 105
+- Average exercise score: 105.0
+- Lesson score: (105.0 / 100) x 5 = 5.25 (capped at 5.25)
