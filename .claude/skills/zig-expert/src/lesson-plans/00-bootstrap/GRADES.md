@@ -84,3 +84,61 @@ Each exercise is scored on three components (max 105, min 0):
 | Context replay | $0.22 |
 | Cache write | $0.72 |
 | Output | $0.28 |
+
+---
+
+## Lesson 02: Standard Library Essentials (Level 0, 5 pts)
+
+### Summary
+
+| # | Topic | Pts | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|-----|---------|---------|------------|---------------|-------|
+| 1 | ArrayList .empty init, append, items | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 2 | ArrayList appendSlice | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 3 | ArrayList insert and orderedRemove | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 4 | ArrayList swapRemove and pop | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 5 | ArrayList clearRetainingCapacity | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 6 | ArrayList ensureTotalCapacity + sort | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 7 | AutoHashMap init, put, get, contains | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 8 | AutoHashMap getOrPut upsert | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 9 | AutoHashMap remove, iterator | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 10 | StringHashMap string keys | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 11 | mem.eql, startsWith, endsWith | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 12 | mem.indexOf and lastIndexOf | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 13 | mem.trim, trimLeft, trimRight | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 14 | mem.splitScalar and splitSequence | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 15 | mem.tokenizeScalar vs splitScalar | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 16 | mem.zeroes, asBytes, concat, replaceOwned | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 17 | fmt.bufPrint | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 18 | fmt.allocPrint and comptimePrint | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 19 | fmt padding, hex, binary, float | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 20 | sort.pdq ascending and descending | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 21 | sort.pdq custom comparator and isSorted | 10 | 30 | A (+30) | +21 | 0 | 81 |
+| 22 | math @min/@max, clamp, isPowerOfTwo | 5 | 30 | A (+30) | +21 | 0 | 81 |
+| 23 | math log2_int, divCeil, maxInt | 5 | 25 | A (+30) | +21 | 1 | 76 |
+| 24 | JSON parseFromSlice struct and dynamic | 20 | 30 | A (+30) | +21 | 0 | 81 |
+| 25 | JSON serialize json.fmt, round-trip | 20 | 30 | A (+30) | +21 | 0 | 81 |
+
+**Average exercise score:** (24 × 81 + 76) / 25 = 2020 / 25 = 80.80 / 105
+
+**Lesson score:** (80.80 / 100) × 5 = **4.04 / 5 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| 23 | `math.log2_int` takes `(comptime T: type, x: T)` not `(typed_value)` | Pass type as separate first arg | New |
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Turns | 16 |
+| Total cost | $1.51 |
+| Baseline (Run 2) | $1.70 (11 turns) |
+| Cost reduction | +11% |
+| Efficiency score | +21 |
+| System replay | $0.09 |
+| Context replay | $0.42 |
+| Cache write | $0.72 |
+| Output | $0.28 |

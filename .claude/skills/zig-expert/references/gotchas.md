@@ -162,6 +162,18 @@ try std.testing.expectEqual(Color.green, color);
 
 Same applies to `@intToEnum` replacement builtins and any `anytype`-returning builtin used inline in a generic call.
 
+## math.log2_int takes type as separate comptime parameter
+
+`std.math.log2_int` signature is `log2_int(comptime T: type, x: T)` — the type is a separate comptime parameter, not inferred from the value. Same pattern applies to `log2`, `divCeil`, and other math functions with comptime type params.
+
+```zig
+// WRONG: passing typed value directly
+const result = std.math.log2_int(@as(u32, 8));
+
+// CORRECT: type as separate first argument
+const result = std.math.log2_int(u32, 8);
+```
+
 ## Comptime checklist (5 rules)
 
 | Rule | Error if violated | Fix |
