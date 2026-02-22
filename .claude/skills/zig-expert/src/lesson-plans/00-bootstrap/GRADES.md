@@ -780,3 +780,228 @@ Each exercise is scored on three components (max 105, min 0):
 | Cost reduction | -50.9% (INCREASE) |
 | Efficiency score | 0 (clamped from -40.9) |
 | **Lesson score** | **8.94/15 pts** (Level 1, 15 pt pool) |
+
+## Lesson 08: Huffman Compression (Phase 1 — Q1–Q4)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q1–Q4) |
+| Phase | 1 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 1 | Read file and count byte frequencies | 1 | 5 | 30 | A (+30) | — | 60 |
+| 2 | Priority queue for tree building | 1 | 5 | 30 | A (+30) | — | 60 |
+| 3 | Build Huffman tree bottom-up | 1 | 5 | 30 | A (+30) | — | 60 |
+| 4 | Generate prefix codes from tree | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 1 (Q1): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt.
+- Reads file via `readFileAlloc`, counts byte frequencies with a `[256]u64` array.
+- simple_test.txt: `97: 3`, `98: 2`, `99: 1` (correct).
+- les_miserables.txt: byte 88=333, byte 116=223000, 123 unique byte values (all correct).
+
+**Exercise 2 (Q2): 60/60 (perfect)**
+- `std.PriorityQueue(*Node, void, compareNodes)` with compareFn returning `std.math.Order`.
+- Min-heap: lower frequency extracted first, ties broken by insertion order.
+- simple_test.txt extraction order: c(1), b(2), a(3) (correct).
+- No compile failures.
+
+**Exercise 3 (Q3): 60/60 (perfect)**
+- Builds Huffman tree bottom-up: inserts leaf nodes, repeatedly extracts two min-frequency nodes, combines into parent.
+- Nodes heap-allocated via `allocator.create(Node)`.
+- simple_test.txt root frequency: 6 (correct).
+- les_miserables.txt root frequency: 3,369,045 (equals file size, correct).
+
+**Exercise 4 (Q4): 60/60 (perfect)**
+- Recursive tree traversal: left=0, right=1.
+- Codes stored as `[256]?CodeEntry` with `CodeEntry` holding a `[32]u8` bit array and length.
+- simple_test.txt codes: a=0 (1 bit), c=10 (2 bits), b=11 (2 bits) — matches worked example.
+- les_miserables.txt: space=3 bits, 'e'=3 bits, 't'=4 bits, 'X'=13 bits (all match reference).
+- Min code length: 3 bits, max code length: 22 bits (match reference).
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| (none) | 0 | 0 | — | — |
+
+**Total correctness deductions:** 0
+
+## Lesson 08: Huffman Compression (Phase 2 — Q5–Q8)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q5–Q8) |
+| Phase | 2 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (Q5: dead code with unused mutable variable) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 5 | Bit writer — pack bits into bytes | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 6 | Encode file to compressed format | 1 | 5 | 30 | A (+30) | — | 60 |
+| 7 | Read header and rebuild tree | 1 | 5 | 30 | A (+30) | — | 60 |
+| 8 | Bit reader — unpack bytes to bits | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 5 (Q5): 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** Left dead code in BitWriter struct -- an unused `initWithAllocator` function containing `var list: std.ArrayList(u8) = .empty;` which Zig flagged as "local variable is never mutated." Fixed by removing the dead function entirely.
+- After fix: all three validation tests pass:
+  - Writing bits `0,0,0,1,1,1,1,0` produces byte `0x1E` (correct).
+  - Writing bits `1,1,0` then flushing produces `0xC0` with 5 padding bits (correct).
+  - Encoding `aaabbc` with codes a=0, b=11, c=10 produces 9 total bits in 2 bytes (0x1F, 0x00) with 7 padding bits (correct).
+- Implementation: MSB-first bit packing, buffers bits in `current_byte` using `bit_pos` counter (0-7), flushes to `ArrayList(u8)` when byte is complete, reports padding on final flush.
+
+**Exercise 6 (Q6): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt (no changes needed after Q5 fix).
+- `encode` command: reads input, builds frequency table/tree/codes, writes binary header + compressed bitstream.
+- Header format: u16 unique count + [u8 byte + u32 freq] entries + u64 total_bits, all little-endian.
+- simple_test.txt: 6 -> 27 bytes (25 header + 2 payload). Correct.
+- les_miserables.txt: 3,369,045 -> 1,970,586 bytes (58.5%). Payload = 1,969,961 bytes + 625 header = 1,970,586 bytes. Matches expected values exactly.
+
+**Exercise 7 (Q7): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt.
+- `decode` command (header-only for now): reads u16 count, [u8+u32] entries, u64 total_bits.
+- Rebuilds tree from frequencies, prints verification info.
+- simple_test.txt compressed: 3 unique bytes, root frequency 6, 9 total bits, 25-byte header. All correct.
+- les_miserables.txt compressed: 123 unique bytes, root frequency 3,369,045, 15,759,687 total bits, 625-byte header. All correct.
+
+**Exercise 8 (Q8): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt.
+- BitReader: MSB-first bit extraction from byte stream, tracks `bits_read` counter.
+- Reading `0x1E` bit-by-bit yields `0,0,0,1,1,1,1,0` (correct).
+- Reading `0xC0` stopping after 3 bits yields `1,1,0` with `bits_read=3` (correct).
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q5 | 1 | -5 | New | Dead code with unused mutable variable in removed function |
+
+**Total Phase 2 correctness deductions:** -5 (on Q5)
+
+## Lesson 08: Huffman Compression (Phase 3 — Q9–Q12)
+
+### Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q9–Q12) |
+| Phase | 3 of 3 |
+| Max points | 20 (4 x 5 pts) |
+| Compile failures | 1 (Q9: pointless discard of local variable) |
+| Test failures | 0 |
+
+### Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| 9 | Decode compressed data | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| 10 | Round-trip verification | 1 | 5 | 30 | A (+30) | — | 60 |
+| 11 | Edge case tests | 1 | 5 | 30 | A (+30) | — | 60 |
+| 12 | Performance and final integration | 1 | 5 | 30 | A (+30) | — | 60 |
+
+### Per-Exercise Scoring Detail
+
+**Exercise 9 (Q9): 55/60 (-5 from correctness)**
+- **Compile failure 1 (-5, new mistake):** In `decodeData`, the empty-file early return path had `offset += 8; _ = offset;` — a pointless discard of a local variable that is still used later in the function. Zig 0.15.2 rejects this pattern. Fixed by removing both the increment and the discard since the function returns early before `offset` is used again.
+- After fix: compiled and ran correctly on first attempt.
+- Decoder implementation: reads header (unique count, frequencies, total_bits), rebuilds Huffman tree, walks tree bit-by-bit using BitReader. Special handling for single-unique-byte trees (code is always `0`, one bit per byte).
+- simple_test.txt: encode then decode produces identical file (verified with `diff`).
+- les_miserables.txt: encode (165ms) then decode (187ms) produces identical file (verified with `diff`). Total well under 5-second limit.
+
+**Exercise 10 (Q10): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt (no additional code changes needed after Q9).
+- `verify` command: compresses to memory, decompresses from memory, compares byte-for-byte with original. Reports original size, compressed size, compression ratio, and pass/fail.
+- simple_test.txt: 6 -> 27 bytes (450.0%), Round-trip: PASS.
+- les_miserables.txt: 3,369,045 -> 1,970,586 bytes (58.5%), Round-trip: PASS. Total verify time: 350ms.
+- In-memory round-trip avoids temp file I/O overhead and cleanup complexity.
+
+**Exercise 11 (Q11): 60/60 (perfect)**
+- All 6 test blocks pass with `zig test` on first attempt (after Q9 fix).
+- Edge cases tested:
+  1. **Empty file** (0 bytes): encodes to 10-byte header (u16=0 + u64=0), decodes back to empty. PASS.
+  2. **Single byte** ("A"): tree has one leaf, code is `0`, 1 bit payload. Round-trips correctly. PASS.
+  3. **Single repeated byte** ("AAAA"): tree has one leaf, code is `0`, 4 bits payload. Round-trips correctly. PASS.
+  4. **All 256 byte values**: 256-byte input with one of each value. Round-trips correctly. PASS.
+- Additional tests: "aaabbc" (simple) and longer text sentence. Both PASS.
+- All tests use `testing.allocator` (leak-detecting). No memory leaks detected.
+
+**Exercise 12 (Q12): 60/60 (perfect)**
+- Compiled and ran correctly on first attempt (no additional code changes needed).
+- Error handling: invalid arguments print usage to stderr and `std.process.exit(1)`. File-not-found and other errors print specific error name to stderr and exit with code 1. Verified all error paths.
+- Performance: les_miserables.txt full round-trip (encode + decode + compare) completes in ~350ms, well under the 5-second requirement.
+- Buffered I/O: all file I/O uses bulk reads (`readFileAlloc`) and bulk writes (`writeAll`), not byte-by-byte. Output is assembled in memory (`ArrayList(u8)`) then written in one `writeAll` call. This is effectively buffered — data is read/written in large chunks.
+- CLI commands: `encode`, `decode`, `verify`, `freq` all work correctly with proper error messages.
+- No memory leaks (verified via GPA and `testing.allocator`).
+
+### Compile Failure Summary
+
+| Exercise | Failures | Points Lost | Type | Description |
+|----------|----------|-------------|------|-------------|
+| Q9 | 1 | -5 | New | Pointless discard of local variable (`_ = offset` while offset still used later) |
+
+**Total Phase 3 correctness deductions:** -5 (on Q9)
+
+## Lesson 08: Huffman Compression — Combined Scoring
+
+### Score Computation
+
+| # | Correctness (30) | Quality | Efficiency (0) | Score |
+|---|-------------------|---------|----------------|-------|
+| Q1 | 30 | A (+30) | 0 | 60 |
+| Q2 | 30 | A (+30) | 0 | 60 |
+| Q3 | 30 | A (+30) | 0 | 60 |
+| Q4 | 30 | A (+30) | 0 | 60 |
+| Q5 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q6 | 30 | A (+30) | 0 | 60 |
+| Q7 | 30 | A (+30) | 0 | 60 |
+| Q8 | 30 | A (+30) | 0 | 60 |
+| Q9 | 25 (-5 new) | A (+30) | 0 | 55 |
+| Q10 | 30 | A (+30) | 0 | 60 |
+| Q11 | 30 | A (+30) | 0 | 60 |
+| Q12 | 30 | A (+30) | 0 | 60 |
+
+- Average exercise score: (60×10 + 55×2) / 12 = 710 / 12 = 59.17
+- Lesson score: (59.17 / 100) × 15 = **8.88/15 pts** (Level 1, 15 pt pool)
+
+### Reflection
+
+**Q5 failure (dead code with unused mutable var):** Left an `initWithAllocator` function containing `var list` that was never called. Zig analyzes all function bodies for correctness even if the function is never called — unused mutable variables in dead functions still trigger compile errors. This is a discipline issue: remove dead code before compiling.
+
+**Q9 failure (pointless discard of still-used variable):** `offset += 8; _ = offset;` in an early-return path where `offset` is still used later in the function. The `_ = offset` pattern is for silencing "unused variable" warnings, but Zig rejects it when the variable is actually used elsewhere in the function. Fix: remove both the increment and discard in the early-return path since they serve no purpose.
+
+**Both failures are new mistakes (-5 each).** Neither was a repeated mistake from SKILL.md. Both have been added to SKILL.md Compiler Gotchas section.
+
+**Cost increase analysis:** $5.25 (64 turns) vs baseline $3.85 (53 turns) — 36.4% increase. The three-phase approach added overhead for a lesson where individual exercises were straightforward. Efficiency score: 0 (clamped from negative).
+
+**Clean-pass patterns (10 of 12 exercises):** Priority queue with `Order`-returning compareFn, binary I/O with `mem.toBytes`/`readInt`, MSB-first bit packing, Huffman tree construction, CLI arg parsing — all well-covered in SKILL.md.
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phase 1 cost | $1.75 (26 turns) |
+| Phase 2 cost | $1.86 (20 turns) |
+| Phase 3 cost | $1.65 (18 turns) |
+| **Run 2 total** | **$5.25 (64 turns)** |
+| Run 1 baseline | $3.85 (53 turns) |
+| Cost reduction | -36.4% (INCREASE) |
+| Efficiency score | 0 (clamped from -26.4) |
+| **Lesson score** | **8.88/15 pts** (Level 1, 15 pt pool) |

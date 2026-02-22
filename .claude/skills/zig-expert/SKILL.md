@@ -315,7 +315,8 @@ const items = parsed.value.object.get("tags").?.array.items; // []Value
 - `StringHashMap.deinit()` does NOT free keys — free via `keyIterator()` first
 - `mem.sliceTo` requires sentinel-terminated ptr (`[*:0]u8`), NOT plain `[*]u8`
 - Function params shadow same-named methods — rename to avoid compile error
-- `_ = x;` is compile error if x was mutated — restructure to avoid the variable
+- **`_ = x;` pitfalls:** (1) compile error if x was mutated — restructure to avoid the variable. (2) compile error if x is still used later in the function — the discard is pointless. Remove the discard (and any dead increment before it).
+- **Dead code in function bodies:** Zig analyzes ALL function bodies even if never called. An unused `var` inside a dead helper function still triggers "local variable is never mutated." Remove dead functions before compiling.
 - `catch` block value: `const x = expr catch blk: { ...; break :blk fallback; };`
 - Error set exhaustiveness: concrete reader types have small known error sets — `else` prong may be unreachable. Use bare `catch` or name the specific error.
 - **Comptime format strings:** `print("{X:0>2}", .{val})` vs `print("{x:0>2}", .{val})` — format specifiers must be comptime-known. To switch case at runtime, use `if (upper) print("{X:0>2}", .{v}) else print("{x:0>2}", .{v})`. Cannot build format string dynamically.
