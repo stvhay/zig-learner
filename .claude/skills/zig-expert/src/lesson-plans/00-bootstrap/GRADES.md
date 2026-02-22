@@ -583,3 +583,56 @@ No compile failures across all 12 exercises (both phases).
 | Baseline (Run 1) | $3.44 (47 turns) |
 | Cost reduction | +45.8% |
 | Efficiency score | +20 (capped) |
+
+---
+
+## Lesson 10: HTTP Server (Level 1, 15 pts)
+
+### Summary
+
+| Q | Title | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | TCP Listener — Accept and Echo | 30 | A (+30) | +20 | 0 | 80 |
+| 2 | Parse the Request Line | 30 | A (+30) | +20 | 0 | 80 |
+| 3 | Serve Static Files | 30 | A (+30) | +20 | 0 | 80 |
+| 4 | Support HEAD Method | 30 | A (+30) | +20 | 0 | 80 |
+| 5 | Subdirectory and Path Handling | 30 | A (+30) | +20 | 0 | 80 |
+| 6 | Path Traversal Protection | 30 | A (+30) | +20 | 0 | 80 |
+| 7 | Connection Keep-Alive | 0 | — | — | — | 0 |
+| 8 | Concurrent Connections with Threads | 0 | — | — | — | 0 |
+| 9 | Response Headers and HTTP Compliance | 0 | — | — | — | 0 |
+| 10 | Error Pages with HTML Bodies | 0 | — | — | — | 0 |
+| 11 | Configurable Root Directory | 0 | — | — | — | 0 |
+| 12 | Access Logging | 0 | — | — | — | 0 |
+
+**Phase 1 (Q1-Q6): 80.0/80 average — perfect execution, zero compile failures**
+**Phase 2 (Q7-Q12): 0/80 — subagent did not produce grades or artifacts**
+**Overall average: 40.0/80**
+**Lesson score: (40.0/80) x 15 = 7.50/15 pts**
+
+### Compile Failure Log
+
+No compile failures in Phase 1. Phase 2 produced no results.
+
+### Reflection
+
+Phase 1 achieved perfect execution across all 6 exercises with zero compile failures. Key patterns: TCP server lifecycle (parseIp4 + listen + accept), HTTP request parsing (splitScalar), static file serving, percent-decoding, and depth-tracking path traversal protection. All patterns were already well-covered in SKILL.md references.
+
+Phase 2 subagent consumed $0.990 over 20 turns but produced no grades or code artifacts. Root cause requires transcript inspection.
+
+**Skill update:** Added depth-tracking path traversal approach to `networking_http.zig` and `systems-reference.md` as a superior alternative to string-matching.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Phase 1 turns | 21 |
+| Phase 1 cost | $1.368 |
+| Phase 2 turns | 20 |
+| Phase 2 cost | $0.990 |
+| Total turns | 41 |
+| Total cost | $2.358 |
+| Baseline (Run 1) | $4.73 (66 turns) |
+| Cost reduction | +50.1% |
+| Efficiency score | +20 (capped) |

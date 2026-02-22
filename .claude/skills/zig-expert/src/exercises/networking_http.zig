@@ -98,7 +98,7 @@ test "url decode" {
     try testing.expectEqualStrings("/hello world", r3);
 }
 
-// Pattern 4: Path traversal detection — check decoded path for ".." BEFORE filesystem
+// Pattern 4a: Path traversal detection — string-matching approach
 // Key: realpathAlloc fails for non-existent paths → would give 404 not 403
 // Key: Must check AFTER url-decoding (encoded %2e%2e = "..")
 fn containsTraversal(path: []const u8) bool {
@@ -107,12 +107,44 @@ fn containsTraversal(path: []const u8) bool {
         mem.endsWith(u8, p, "/..") or mem.indexOf(u8, p, "/../") != null;
 }
 
-test "path traversal detection" {
+test "path traversal detection (string matching)" {
     try testing.expect(containsTraversal("/../etc/passwd"));
     try testing.expect(containsTraversal("/subdir/../../etc/passwd"));
     try testing.expect(containsTraversal("../etc/passwd"));
     try testing.expect(!containsTraversal("/index.html"));
     try testing.expect(!containsTraversal("/subdir/nested.html"));
+}
+
+// Pattern 4b: Path traversal detection — depth-tracking approach (preferred)
+// Key: Walk path components, track depth relative to root. If depth goes negative,
+//      the path escapes the root. More robust than string-matching: handles arbitrary
+//      nesting like "/a/b/c/../../../.." without enumerating patterns.
+// Key: Uses tokenizeScalar (not splitScalar) to skip empty components from "//"
+// Key: No allocations needed — pure arithmetic on path components
+fn isPathSafe(decoded_path: []const u8) bool {
+    var depth: i32 = 0;
+    var it = mem.tokenizeScalar(u8, decoded_path, '/');
+    while (it.next()) |component| {
+        if (mem.eql(u8, component, "..")) {
+            depth -= 1;
+            if (depth < 0) return false; // Escaped root
+        } else if (!mem.eql(u8, component, ".")) {
+            depth += 1;
+        }
+    }
+    return true;
+}
+
+test "path traversal detection (depth tracking)" {
+    // Traversal attacks — should be rejected
+    try testing.expect(!isPathSafe("/../etc/passwd"));
+    try testing.expect(!isPathSafe("/subdir/../../etc/passwd"));
+    try testing.expect(!isPathSafe("../etc/passwd"));
+    try testing.expect(!isPathSafe("/a/b/c/../../../../etc/passwd"));
+    // Safe paths
+    try testing.expect(isPathSafe("/index.html"));
+    try testing.expect(isPathSafe("/subdir/nested.html"));
+    try testing.expect(isPathSafe("/a/b/../b/file.html")); // stays within root
 }
 
 // Pattern 5: HTTP date formatting with EpochSeconds

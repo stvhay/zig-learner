@@ -148,9 +148,26 @@ const day_secs = epoch_secs.getDaySeconds();
 ```zig
 // realpathAlloc fails for non-existent paths → 404 not 403
 // Pre-check for ".." BEFORE filesystem access for correct 403
+
+// Approach 1: String matching (simple but may miss edge cases)
 fn containsTraversal(p: []const u8) bool {
     return mem.eql(u8, p, "..") or mem.startsWith(u8, p, "../")
         or mem.endsWith(u8, p, "/..") or mem.indexOf(u8, p, "/../") != null;
+}
+
+// Approach 2: Depth tracking (preferred — handles arbitrary nesting, no allocations)
+fn isPathSafe(decoded_path: []const u8) bool {
+    var depth: i32 = 0;
+    var it = mem.tokenizeScalar(u8, decoded_path, '/');
+    while (it.next()) |component| {
+        if (mem.eql(u8, component, "..")) {
+            depth -= 1;
+            if (depth < 0) return false; // Escaped root
+        } else if (!mem.eql(u8, component, ".")) {
+            depth += 1;
+        }
+    }
+    return true;
 }
 ```
 
