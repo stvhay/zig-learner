@@ -194,6 +194,18 @@ const sa = std.posix.Sigaction{
     .flags = 0,
 };
 std.posix.sigaction(std.posix.SIG.INT, &sa, null);
+
+// Graceful shutdown: signal → flag → self-connect → WaitGroup.wait → deadline
+// SO_RCVTIMEO does NOT unblock accept() on macOS — use self-connect trick:
+// Signal handler sets atomic running=false, then connects to own listen socket
+// to unblock the accept() call. Accept loop checks running flag and exits.
+// WaitGroup tracks in-flight requests (.start() before spawn, .finish() via defer).
+// Deadline thread sleeps N seconds then std.posix.exit(1) as hard stop.
+
+// HTTP body reading: parse Content-Length, loop reads until exact bytes received
+// Headers end at "\r\n\r\n". If Content-Length present, allocate and loop:
+//   while (received < content_length) { received += stream.read(buf[received..]); }
+// No Content-Length: read until connection close using ArrayList dynamic buffer.
 ```
 
 ### Crypto

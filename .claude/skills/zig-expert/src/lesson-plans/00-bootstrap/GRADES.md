@@ -1466,3 +1466,236 @@ Lesson 10 final score: **59/60** (A)
 | Cost reduction | -62.6% (INCREASE) |
 | Efficiency score | 0 (clamped from -52.6) |
 | **Lesson score** | **8.89/15 pts** (Level 1, 15 pt pool) |
+
+## Lesson 11: Load Balancer
+
+### Phase 1 Summary (Q1–Q4)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q1–Q4) |
+| Max points (phase) | 20 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Phase 1 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q1 | TCP proxy — single backend | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q2 | Request logging — parse + format | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q3 | Concurrent clients — Thread.spawn | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q4 | Round-robin — atomic counter + CLI | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 1 average:** 60/100
+
+### Phase 1 Per-Exercise Notes
+
+**Q1 — TCP Proxy (5/5, 60/100):**
+- Clean compile, zero failures
+- Listens on 8080, forwards to backend at 8081, returns response
+- Verified: `curl http://localhost:8080/` returns correct backend response
+- Quality: A — clean separation of concerns, proper defer cleanup, error handling on all I/O
+
+**Q2 — Request Logging (5/5, 60/100):**
+- Clean compile, zero failures
+- Parses request line (method, path, version) from client bytes
+- Parses response status from backend response first line
+- Log format: `127.0.0.1:54321 -> 127.0.0.1:8081 "GET / HTTP/1.1" 200` — matches spec
+- Logs AFTER response sent to client
+- Quality: A — atomic logging with mutex + posix.write, formats into local buffer first
+
+**Q3 — Concurrent Clients (5/5, 60/100):**
+- Clean compile, zero failures
+- Thread.spawn per connection with detach (accept loop never blocks)
+- Verified: `/slow` (3s) and `/` run concurrently without blocking
+- Thread errors caught gracefully (catch on spawn + catch on all I/O in handler)
+- Quality: A — proper detach pattern, graceful error handling throughout
+
+**Q4 — Round-Robin (5/5, 60/100):**
+- Clean compile, zero failures
+- CLI: `./lb <port> <backend1:port> <backend2:port> ...`
+- Atomic counter: `std.atomic.Value(usize).init(0)`, `fetchAdd(1, .monotonic) % len`
+- Verified: 6 sequential requests cycle through A, B, C, A, B, C
+- Default fallback: no args = listen 8080, single backend 8081
+- Quality: A — proper arg parsing with error messages, clean Backend struct
+
+### Phase 2 Summary (Q5–Q8)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q5–Q8) |
+| Max points (phase) | 20 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Phase 2 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q5 | Backend error handling — 502/504 | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q6 | Health check background thread | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q7 | Skip unhealthy backends — 503 | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q8 | X-Forwarded-For header manipulation | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 2 average:** 60/100
+
+### Phase 2 Per-Exercise Notes
+
+**Q5 — Backend Error Handling (5/5, 60/100):**
+- Clean compile, zero failures
+- Connection refused to dead backend returns `502 Bad Gateway` with correct response format
+- Read timeout / empty response returns `504 Gateway Timeout`
+- Error logged: `ERROR: backend 127.0.0.1:8082 connection failed`
+- SO_RCVTIMEO set on backend socket for timeout detection
+- Server continues accepting after backend failures — no crash
+- Verified: requests to live A/C succeed, dead B returns 502
+- Quality: A — extracted response constants, atomicLog helper reduces duplication, proper defer chain
+
+**Q6 — Health Check Background Thread (5/5, 60/100):**
+- Clean compile, zero failures
+- Background thread spawned with detach, runs health checks every N seconds
+- `GET /health HTTP/1.1` sent to each backend, status 200 = healthy
+- Per-backend `std.atomic.Value(bool)` for thread-safe health status
+- Health transitions logged: `HEALTH: 127.0.0.1:8082 UP -> DOWN` and `DOWN -> UP`
+- CLI `--health-interval N` supported (default 10s)
+- Verified: killed backend B detected DOWN within interval, restart detected UP
+- Quality: A — clean separation of health check logic, 2s timeout on health probes
+
+**Q7 — Skip Unhealthy Backends (5/5, 60/100):**
+- Clean compile, zero failures
+- Round-robin skips unhealthy backends (tries up to backends.len times)
+- All unhealthy returns `503 Service Unavailable`
+- Counter still increments globally, but unhealthy slots skipped
+- Verified: with B down, 6 requests alternate A, C, A, C, A, C (never B)
+- Verified: all backends killed returns 503
+- Quality: A — clean loop with bounded attempts, integrates naturally with existing round-robin
+
+**Q8 — X-Forwarded-For Header (5/5, 60/100):**
+- Clean compile, zero failures
+- Adds `X-Forwarded-For: <client_ip>` when not present
+- Appends `X-Forwarded-For: <existing>, <client_ip>` when header exists
+- Adds `X-Forwarded-Host: <original_host>` preserving client's Host value
+- Replaces `Host` with backend address before forwarding
+- Verified via /echo: `X-Forwarded-For: 127.0.0.1`, `X-Forwarded-Host: localhost:8080`, `Host: 127.0.0.1:8081`
+- Verified append: `X-Forwarded-For: 10.0.0.1, 127.0.0.1` when existing header present
+- Quality: A — buildProxiedRequest extracted as pure function, case-insensitive header matching, clean header rebuild
+
+### Phase 3 Summary (Q9–Q12)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q9–Q12) |
+| Max points (phase) | 20 |
+| Compile failures | 1 |
+| Test failures | 0 |
+
+### Phase 3 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q9 | Full HTTP response reading — Content-Length + chunked | 1 | 5 | 25 (-5) | A (+30) | — | 55 |
+| Q10 | Connection + read timeouts — SO_RCVTIMEO/SNDTIMEO | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q11 | Graceful shutdown — SIGINT/SIGTERM, WaitGroup | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q12 | Statistics endpoint — JSON, per-backend metrics | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 3 average:** 58.75/100
+
+### Phase 3 Per-Exercise Notes
+
+**Q9 — Full HTTP Response Reading (5/5, 55/100):**
+- **Compile failure 1 (-5, new mistake):** Used `std.ArrayList(u8).init(gpa)` instead of `.empty` with per-method allocator pattern. 0.15.2 ArrayList uses `.empty` init and passes allocator to each method. Fixed to `.empty` + `appendSlice(gpa, ...)`, `ensureTotalCapacity(gpa, ...)`, `toOwnedSlice(gpa)`.
+- After fix: clean compile, zero test failures
+- Parses Content-Length from response headers (case-insensitive header matching)
+- Loops reads until exact Content-Length bytes received
+- No Content-Length: reads until connection close using ArrayList dynamic buffer
+- Supports up to 10 MB responses (MAX_RESPONSE_SIZE constant)
+- Verified: 1.4 MB file transferred through LB matches original (`diff` = no differences)
+- Small responses still work correctly (basic proxying unaffected)
+- Uses allocator from SharedState for dynamic response buffering
+- Quality: A — clean separation of header parsing and body reading, errdefer on ArrayList, graceful handling of malformed/incomplete responses
+
+**Q10 — Connection Timeouts (5/5, 60/100):**
+- Clean compile, zero failures
+- SO_SNDTIMEO set to 2s for connect timeout on backend socket
+- SO_RCVTIMEO set to 10s for read timeout on backend socket
+- Verified: `/slow` endpoint (3s delay) succeeds within 10s read timeout
+- Verified: dead backend returns 502 quickly (connection refused, not timeout)
+- Timed-out backends treated same as failed connections (502/504 response)
+- Quality: A — clean timeout application via setsockopt, separate connect vs read timeouts
+
+**Q11 — Graceful Shutdown (5/5, 60/100):**
+- Clean compile, zero failures
+- SIGINT and SIGTERM handlers registered via `std.posix.Sigaction`
+- Signal handler sets atomic `running` flag to false
+- Self-connect trick unblocks accept() on macOS (SO_RCVTIMEO doesn't work for accept on macOS)
+- Accept loop checks `running` flag, exits cleanly when false
+- WaitGroup tracks in-flight requests: `.start()` before spawn, `.finish()` in handler defer
+- `wg.wait()` blocks until all in-flight requests complete
+- 5-second deadline via separate deadline thread
+- Health check thread exits via `running` flag check in sleep loop (500ms chunks)
+- Prints "Shutting down..." then "Shutdown complete." to stdout
+- Verified: `kill -INT` causes clean exit within 1 second, no zombie threads
+- Quality: A — global state pointer for signal handler (necessary limitation), clean shutdown sequence, health thread cooperative exit via flag polling
+
+**Q12 — Statistics Endpoint (5/5, 60/100):**
+- Clean compile, zero failures
+- `GET /__lb/stats` intercepted before backend routing
+- Returns valid JSON with Content-Type: application/json
+- Tracks: uptime_seconds, total_requests, active_connections
+- Per-backend: address, healthy, requests_served, errors, avg_response_ms
+- All counters use atomic operations (u64) for thread safety
+- Response times measured via `std.time.nanoTimestamp()` before/after backend call
+- Verified: 10 requests distributed 4/3/3 across 3 backends, all fields present and valid
+- JSON validated by Python `json.tool` and field assertion script
+- Quality: A — manual JSON construction via bufPrint avoids allocator, per-backend BackendStats struct with atomics, clean separation from request handling
+
+### Q9 Compile Failure Reclassification
+
+The Phase 3 grader scored Q9's `ArrayList(u8).init(gpa)` → `.empty` failure as a "new mistake" (-5 from 30 correctness). However, `ArrayList(T) | .empty` is explicitly documented in SKILL.md's Collection Initialization table. Per the rubric: "mistake already in the skill knowledge base" = -2 per failure, not -1. **Corrected:** Q9 correctness = 28/30, score = 58/100.
+
+### Combined Lesson 11 Totals (All Phases)
+
+| Phase | Score | Grade |
+|-------|-------|-------|
+| Phase 1 (Q1-Q4) | 240/240 (avg 60/60) | A (100%) |
+| Phase 2 (Q5-Q8) | 240/240 (avg 60/60) | A (100%) |
+| Phase 3 (Q9-Q12) | 238/240 (avg 59.5/60) | A (99.2%) |
+| **Total** | **718/720 (avg 59.83/60)** | **A (99.8%)** |
+
+Lesson 11 final score: **59.83/60** (A)
+
+### Reflection
+
+**Compile failures — 1 repeated:**
+1. **`ArrayList(u8).init(gpa)` instead of `.empty`** (Q9) — The Collection Initialization table in SKILL.md explicitly documents this pattern. The table is clear and correctly formatted. This is a recall failure, not a documentation gap. The agent failed to consult the table before writing ArrayList initialization code, despite the table being one of the first entries in the "0.15.2 API Reference" section.
+
+**Analysis:** This is the first time the ArrayList init pattern was missed since it was documented (Lessons 7-10 all used ArrayList correctly). The failure occurred in Phase 3, exercise 9, when building a dynamic HTTP response buffer — context where ArrayList is the natural tool. The agent likely reached for the `.init(gpa)` pattern from HashMap/ObjectMap muscle memory. The Collection Initialization table's purpose is exactly to prevent this confusion between per-method (ArrayList) and stored-allocator (HashMap) patterns.
+
+**Clean-pass patterns (11 of 12 exercises):**
+- TCP proxy with thread-per-connection + detach: Clean from Lesson 10 experience
+- Atomic counter for round-robin: `std.atomic.Value(usize)` with `.fetchAdd(1, .monotonic) % len`
+- Health check background thread: Atomic bool per-backend, transition logging
+- Signal handling + self-connect trick: Unblocks `accept()` on macOS where SO_RCVTIMEO fails
+- WaitGroup for in-flight request tracking: `.start()` before spawn, `.finish()` in defer
+- HTTP header manipulation: Case-insensitive matching, header rebuild for proxying
+- Full HTTP response reading: Content-Length parsing + read loop
+- Statistics endpoint: Manual JSON construction via `bufPrint` avoids allocator in hot path
+- SO_SNDTIMEO/SO_RCVTIMEO for connect vs read timeouts (separate values)
+
+**Skill updates made:**
+1. Added graceful shutdown composite pattern to Networking section: signal → flag → self-connect → WaitGroup.wait → deadline thread. Documents the macOS accept() unblocking workaround.
+2. Added HTTP body reading pattern: Content-Length parsing + read loop, dynamic buffer fallback for missing Content-Length.
+
+## Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phase 1 cost | $1.23 (16 turns) |
+| Phase 2 cost | $2.02 (37 turns) |
+| Phase 3 cost | $1.73 (23 turns) |
+| **Run 2 total** | **$4.99 (76 turns)** |
+| Run 1 baseline | $3.67 (37 turns) |
+| Cost reduction | -36.0% (INCREASE) |
+| Efficiency score | 0 (clamped from -26.0) |
+| **Lesson score** | **8.97/15 pts** (Level 1, 15 pt pool) |
