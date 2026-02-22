@@ -1699,3 +1699,264 @@ Lesson 11 final score: **59.83/60** (A)
 | Cost reduction | -36.0% (INCREASE) |
 | Efficiency score | 0 (clamped from -26.0) |
 | **Lesson score** | **8.97/15 pts** (Level 1, 15 pt pool) |
+
+---
+
+## Lesson 12: Git Internals (Phase 1 — Q1–Q4)
+
+### Phase 1 Summary (Q1–Q4)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q1–Q4) |
+| Max points (phase) | 20 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Phase 1 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q1 | SHA-1 blob hashing + CLI | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q2 | Write blob to object store (zlib deflate) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q3 | cat-file -t/-s/-p (zlib inflate, tree pretty-print) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q4 | Init command (.git structure) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 1 average:** 60/100
+
+### Phase 1 Per-Exercise Notes
+
+**Q1 — SHA-1 Blob Hashing (5/5, 60/100):**
+- Clean compile, zero failures
+- `hashObject()` function prepends `"blob <size>\0"` header and computes SHA-1 via `std.crypto.hash.Sha1`
+- CLI parses `hash-object <filename>`, reads file with `readFileAlloc`, prints 40-char hex
+- Hex formatting via `std.fmt.bytesToHex(digest, .lower)` — returns `[40]u8` directly
+- Validated: `echo -n "hello world"` → `95d09f2b10159347eece71399a7e2e907ea3df4f` (matches expected)
+- Validated: `echo "hello world"` → `3b18e512dba79e4c8300dd08aeb37f8e728b8dad` (matches expected)
+- Quality: A — clean function separation (hashObject returns [20]u8), header formatted via bufPrint
+
+**Q2 — Write Blob to Object Store (5/5, 60/100):**
+- Clean compile, zero failures
+- `-w` flag triggers `writeObject()` which zlib-compresses via C zlib (`c.compress`)
+- Object path: `.git/objects/<2-char dir>/<38-char file>`
+- Subdirectory creation via `Dir.makeOpenPath()` — creates if missing, opens if exists
+- Idempotent: checks `sub_dir.access(file_name, .{})` before writing
+- Validated: wrote blob, `git cat-file -p <hash>` returned `hello world` (interop confirmed)
+- Quality: A — proper errdefer on allocated compress buffer, clean path construction
+
+**Q3 — Cat-file (5/5, 60/100):**
+- Clean compile, zero failures
+- Reads compressed object from `.git/objects/<2>/<38>`, inflates via C zlib (`c.uncompress`)
+- Parses header `"<type> <size>\0"` to extract type and content
+- `-t` prints type, `-s` prints content length, `-p` prints content
+- Tree pretty-printing: parses binary format `<mode> <name>\0<20-byte hash>`, infers type from mode
+- Validated against real git objects: blob (-t→"blob", -s→"12", -p→"hello world"), tree (matches `git cat-file -p`), commit (raw text output)
+- Quality: A — `prettyPrintTree` handles binary parsing correctly, progressive buffer growth for inflate
+
+**Q4 — Init Command (5/5, 60/100):**
+- Clean compile, zero failures
+- Creates `.git/objects/`, `.git/refs/heads/`, `.git/refs/tags/` via `Dir.makePath()`
+- Writes `HEAD` with `"ref: refs/heads/main\n"`
+- Supports optional directory argument; defaults to cwd
+- Resolves absolute path via `Dir.realpathAlloc()`
+- Error case: existing `.git` prints error to stderr, exits with code 1
+- Validated: all expected directories created, HEAD content correct, error case handled
+- Quality: A — clean directory creation with makePath, proper error messaging
+
+### Phase 2 Summary (Q5–Q8)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q5–Q8) |
+| Max points (phase) | 20 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Phase 2 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q5 | Write tree objects from index entries | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q6 | Write index file (update-index --add, v2 binary) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q7 | Read index file (ls-files, ls-files --stage) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q8 | Commit command (tree + commit object + ref update) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 2 average:** 60/100
+
+### Phase 2 Per-Exercise Notes
+
+**Q5 — Write Tree Objects (5/5, 60/100):**
+- Clean compile, zero failures
+- `buildTreeContent()` sorts entries by name, serializes binary format: `<mode> <name>\0<20-byte hash>`
+- `writeTreeObject()` wraps content with `"tree <size>\0"`, computes SHA-1, writes to object store
+- `cmdWriteTree()` reads the index, builds tree from all entries, prints tree hash
+- `modeToOctal()` converts numeric mode (0o100644/0o100755/0o40000) to ASCII octal strings
+- Validated: `git cat-file -p <tree-hash>` shows correct `100644 blob <hash>\thello.txt` entries
+- Quality: A — clean separation of tree building from index reading, sort via pdq
+
+**Q6 — Write Index File (5/5, 60/100):**
+- Clean compile, zero failures
+- `statForIndex()` reads file, computes blob hash, writes blob, gets stat via `std.fs.cwd().statFile()`
+- Extracts ctime/mtime seconds and nanoseconds from i128 nanosecond timestamps (divFloor/mod by 1e9)
+- `writeIndex()` writes v2 binary format: DIRC header, version 2, entry count, entries with stat fields, SHA-1 footer
+- Entry padding: each entry padded to 8-byte boundary (1-8 NUL bytes) via `alignTo8()`
+- Flags: 12-bit name_length (min of path.len and 0xFFF), other bits 0
+- Multiple calls merge entries: reads existing index, updates matching paths or appends new
+- Validated: `git status` after `update-index --add` shows file as "Changes to be committed"
+- Quality: A — big-endian writes via `std.mem.writeInt(u32, ..., .big)`, clean entry serialization
+
+**Q7 — Read Index File (5/5, 60/100):**
+- Clean compile, zero failures
+- `readIndex()` parses v2 binary format: validates DIRC signature, version, checksum
+- SHA-1 checksum validation: computes SHA-1 of all bytes before final 20, compares with stored checksum
+- Parses each entry: stat fields (ctime, mtime, dev, ino, mode, uid, gid, size), SHA-1, flags, path
+- Handles variable-length paths with NUL terminator and 8-byte alignment padding
+- `cmdLsFiles()` outputs plain file list or `--stage` format: `<mode> <hash> <stage>\t<path>`
+- Validated: reads index written by ccgit, reads index written by real git (interop confirmed on zighelloworld repo)
+- Quality: A — checksum validation, proper bounds checking, clean big-endian reads
+
+**Q8 — Commit Command (5/5, 60/100):**
+- Clean compile, zero failures
+- Reads index, writes tree object, creates commit object with tree/parent/author/committer/message
+- `readHeadRef()` parses `.git/HEAD` to extract branch ref path (e.g., "refs/heads/main")
+- `readBranchHash()` reads the current commit hash from the branch ref (returns null for first commit)
+- Parent line: included when HEAD points to existing commit, omitted for first commit
+- Commit body built via ArrayListUnmanaged for dynamic string construction
+- Timestamp from `std.time.timestamp()`, author/committer: `ccgit <ccgit@example.com> <ts> +0000`
+- Updates branch ref file with new commit hash
+- Output: `[<branch> <short-hash>] <message>`
+- Validated: `git log --oneline` shows commits, `git cat-file -p HEAD` shows correct tree/parent/author/message, `git status` shows clean after commit
+- Quality: A — proper parent chain handling, clean ref update with makePath for parent dirs
+
+### Phase 3 Summary (Q9–Q12)
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 4 (Q9–Q12) |
+| Max points (phase) | 20 |
+| Compile failures | 0 |
+| Test failures | 0 |
+
+### Phase 3 Grade Table
+
+| # | Topic | Diff | Pts | Correctness (30) | Quality | Efficiency | Score |
+|---|-------|------|-----|-------------------|---------|------------|-------|
+| Q9 | Status command (staged/unstaged/untracked) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q10 | Log command (parent chain, --oneline, dates) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q11 | Write-tree with subdirectories (recursive) | 1 | 5 | 30 | A (+30) | — | 60 |
+| Q12 | Diff command (unified diff, LCS algorithm) | 1 | 5 | 30 | A (+30) | — | 60 |
+
+**Phase 3 average:** 60/100
+
+### Phase 3 Per-Exercise Notes
+
+**Q9 — Status Command (5/5, 60/100):**
+- Clean compile, zero failures
+- `cmdStatus()` reads HEAD ref for branch name, reads index entries, reads HEAD tree (flattened)
+- `flattenTree()` recursively flattens tree objects into a list of file paths with SHA-1 hashes
+- Staged changes: compares index vs HEAD tree — new file (in index, not in HEAD), modified (different hash), deleted (in HEAD, not in index)
+- Unstaged changes: compares working directory vs index — modified (different hash), deleted (missing file)
+- `scanWorkingDir()` recursively iterates working directory via `Dir.iterate()`, skips `.git/`
+- Untracked files: in working directory but not in index
+- Output grouped by category: "Changes to be committed", "Changes not staged for commit", "Untracked files"
+- "nothing to commit, working tree clean" when no changes
+- Validated: all 4 status scenarios (clean, unstaged modified, staged modified, untracked) match expected output
+- Quality: A — clean separation of tree flattening, index comparison, and directory scanning
+
+**Q10 — Log Command (5/5, 60/100):**
+- Clean compile, zero failures
+- Follows parent chain from HEAD commit to root commit
+- Full format: `commit <hash>`, `Author: <name> <email>`, `Date: <human-readable>`, indented message
+- `--oneline` format: `<short-hash> <first line of message>`
+- `formatTimestamp()` converts unix timestamp to human-readable date using `std.time.epoch.EpochSeconds`
+- Uses `getEpochDay()`, `calculateYearDay()`, `calculateMonthDay()`, `getDaySeconds()` for date components
+- Day of week computed manually: epoch day 0 = Thursday, `day % 7` → day_names lookup
+- `parseAuthorLine()` extracts name/email, timestamp, timezone from author/committer lines
+- Parent chain: reads "parent <hash>" line from commit content, follows to next commit
+- Validated: `ccgit log --oneline` output matches `git log --oneline` exactly for 2-commit chain
+- Quality: A — clean timestamp formatting, proper parent chain traversal, line-by-line commit parsing
+
+**Q11 — Write-tree with Subdirectories (5/5, 60/100):**
+- Clean compile, zero failures
+- Refactored tree-writing to handle nested paths via `writeTreeForDir()` recursive function
+- `TreeEntry` struct represents tree entries (mode, name, sha1) — distinct from IndexEntry
+- For index paths containing `/`, splits into directory name and recurse with sub-prefix
+- Tracks seen directory names to avoid duplicate subtree writes
+- Subdirectory entries use mode `"40000"` (5 digits, not 6)
+- `buildTreeContentFromEntries()` sorts TreeEntry by name for correct binary tree format
+- Validated: `git cat-file -p <tree>` shows `040000 tree <hash> src` alongside blob entries
+- `git cat-file -p <src-tree>` shows `main.zig` inside the src subtree
+- Q5's flat tree behavior preserved — no regression for non-nested paths
+- Quality: A — clean recursive design, proper separation of TreeEntry from IndexEntry
+
+**Q12 — Diff Command (5/5, 60/100):**
+- Clean compile, zero failures
+- `computeLcs()` computes Longest Common Subsequence table for two slices of lines — O(m*n) time and space
+- Backtrack through LCS table to produce edit script (keep/delete/insert operations)
+- `generateUnifiedDiff()` outputs unified diff format with 3 lines of context
+- Hunk generation: finds changed regions, extends with context, merges adjacent hunks
+- Header: `diff --git a/<path> b/<path>`, `index <old>..<new> <mode>`, `--- a/<path>`, `+++ b/<path>`
+- Hunk header: `@@ -<old_start>,<old_count> +<new_start>,<new_count> @@`
+- Handles single-line change (omits count when 1), multi-line changes, deletions
+- Lines split via `splitScalar('\n')` with trailing empty line removal for content ending in `\n`
+- Validated: exact match with `git diff` output for:
+  - Simple single-line change (`hello world` → `hello zig`)
+  - Middle-of-file change with context (`line4` → `MODIFIED` in 8-line file)
+  - Multi-line replacement (`c\nd` → `X\nY\nZ` in 5-line file)
+- Quality: A — clean LCS implementation, proper hunk generation with context, handles edge cases
+
+### Lesson 12 Overall Summary
+
+| Metric | Value |
+|--------|-------|
+| Exercises | 12 (Q1–Q12) |
+| Max points | 60 |
+| Earned points | 60 |
+| Compile failures | 0 |
+| Test failures | 0 |
+| Overall quality | A |
+| **Lesson score** | **20.74/30 pts** |
+
+### Lesson 12 Scoring
+
+- Per exercise: Correctness 30 + Quality A (+30) + Efficiency 9.12 = 69.12
+- Average: 69.12/100
+- Lesson score: 69.12 / 100 x 30 = **20.74/30 pts**
+- Letter grade: **B** (69%)
+
+## Token Usage
+
+### Run 2 (R2)
+
+| Phase | Agent | Turns | Cost |
+|-------|-------|-------|------|
+| 1 | ad49e8f | 30 | $1.70 |
+| 2 | af6473b | 19 | $2.08 |
+| 3 | ab9a68d | 31 | $3.07 |
+| **Total** | — | **80** | **$6.85** |
+
+**Baseline (R1):** 61 turns, $6.79
+**Cost reduction:** -0.88% (cost increased slightly)
+**Efficiency score:** 9.12
+
+### Lesson 12 Reflection
+
+**Zero compile failures:** All 12 exercises compiled clean on first attempt. The skill knowledge base was sufficient for this problem domain (SHA-1 hashing, C zlib interop, binary format I/O, filesystem operations).
+
+**Clean-pass patterns confirmed:**
+- `std.crypto.hash.Sha1` with `.init(.{})` / `.update()` / `.finalResult()` — straightforward API
+- C zlib via `@cImport` — well-documented in skill and exercises
+- `std.fmt.bytesToHex(digest, .lower)` — returns fixed-size array, not slice
+- `std.mem.writeInt`/`readInt` with `.big` endianness — critical for git binary formats
+- `Dir.makeOpenPath()` — create-and-open in one call, avoids separate mkdir + openDir
+- `Dir.iterate()` with `.{ .iterate = true }` flag — required for recursive scanning
+- `ArrayListUnmanaged` — useful when allocator shouldn't be stored in the container
+- `std.time.epoch.EpochSeconds` for date formatting — clean decomposition API
+
+**Skill updates made:**
+- Added big-endian binary I/O examples to Filesystem section (was little-endian only)
+- Added `Dir.makeOpenPath()`, `Dir.statFile()`, `Dir.iterate()` to Filesystem section
+- Added `std.fmt.bytesToHex` to Crypto section
+- Added `ArrayListUnmanaged` to Data structure table
+
+**No stale entries found.** All existing SKILL.md content remains accurate for the patterns used.

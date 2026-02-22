@@ -148,9 +148,20 @@ const data2 = try file.readToEndAlloc(gpa, std.math.maxInt(usize));
 
 // Dir.close() requires *Dir (mutable) — use var, not const
 
-// Little-endian binary I/O
-try f.writeAll(&std.mem.toBytes(@as(u32, value)));
+// Binary I/O — readInt/writeInt work for both endiannesses
+try f.writeAll(&std.mem.toBytes(@as(u32, value)));           // little-endian (native)
 const v = std.mem.readInt(u32, buf[0..4], .little);
+std.mem.writeInt(u32, &buf, 0x44495243, .big);               // big-endian (git/network)
+const be = std.mem.readInt(u32, buf[0..4], .big);
+
+// Dir utilities
+var sub = try std.fs.cwd().makeOpenPath("objects/ab", .{});   // create + open in one call
+defer sub.close();                                            // returns Dir (must be var)
+const stat2 = try std.fs.cwd().statFile("file.txt");          // stat by path (no open needed)
+var dir_iter = try std.fs.cwd().openDir(".", .{ .iterate = true }); // iterate requires flag
+defer dir_iter.close();
+var it = dir_iter.iterate();
+while (try it.next()) |entry| { _ = entry.name; _ = entry.kind; }
 
 // In-place file editing: write temp, preserve permissions, atomic rename
 const stat = try orig_file.stat();
@@ -223,6 +234,10 @@ try std.crypto.pwhash.argon2.kdf(gpa, &derived_key, password, &salt,
 // Secure random
 std.crypto.random.bytes(&buf);
 const n = std.crypto.random.uintLessThan(u8, max);
+
+// Hash digest → hex string (returns fixed-size array, NOT slice)
+const hex = std.fmt.bytesToHex(sha1_digest, .lower);  // [40]u8 for [20]u8 input
+try stdout.print("{s}\n", .{&hex});                    // pass &hex (pointer to array)
 ```
 
 ### Other Patterns
@@ -428,6 +443,7 @@ free:   *const fn(*anyopaque, []u8, Alignment, ret_addr: usize) void,
 | Need | Use |
 |------|-----|
 | Dynamic array | `ArrayList` (`.empty`, per-method alloc) |
+| Dynamic array (unmanaged) | `ArrayListUnmanaged` (`.empty`, per-method alloc, no stored state) |
 | JSON array | `json.Array` (`.init(gpa)` — Managed, stored alloc) |
 | JSON object | `json.ObjectMap` (`.init(gpa)` — stored alloc) |
 | Key→value map | `AutoHashMap`/`StringHashMap` (`.init(gpa)`) |
