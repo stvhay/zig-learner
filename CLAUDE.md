@@ -124,7 +124,7 @@ The orchestrator reads `baselines.json` turn count + considers lesson topic to c
 
 ### Grading Rubric
 
-Each exercise is scored on three components (max 105 per exercise, min 0):
+Each exercise is scored on three components (max 80 per exercise, min 0):
 
 **1. Correctness (base 30):**
 - The solution does not fully answer the question: 0 correctness
@@ -134,12 +134,13 @@ Each exercise is scored on three components (max 105 per exercise, min 0):
 **2. Code Quality:**
 - A: +30, B: +20, C: +10, D: +0, F: -20
 
-**3. Efficiency (vs Run 1 baseline from `baselines.json`):**
-- 30% cost reduction vs baseline = +40
-- Each 1% less reduction: -1 (e.g., 20% reduction = +30, 0% reduction = +10, -10% = 0)
-- Can go negative for cost increases beyond 10% over baseline
+**3. Efficiency (vs baseline from `baselines.json`):**
+- Match baseline (0% change): +10 (A grade)
+- Each 3% under baseline: +1 more (30% under = +20, the cap)
+- Each 3% over baseline: -1 (30% over = 0, 60% over = -10)
+- Formula: `clamp(10 + reduction_pct / 3, -inf, 20)`
 
-**Lesson score:** `(avg_exercise_score / 100) × level_points`
+**Lesson score:** `(avg_exercise_score / 80) × level_points`
 
 | Level | Pts | Lessons |
 |-------|-----|---------|
@@ -148,7 +149,7 @@ Each exercise is scored on three components (max 105 per exercise, min 0):
 | 2 | 30 | 12, 16 (applied mid) |
 | 3 | 50 | 13, 15, 17 (applied advanced) |
 
-**Total pool: 330 pts.** 100 = expected score. 105 = ceiling.
+**Total pool: 330 pts.** 80/80 per exercise = 100% of level points.
 
 The agent should maximize its grade without cheating or undermining the learning process.
 
