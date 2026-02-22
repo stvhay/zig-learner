@@ -769,3 +769,47 @@ Phase 2 subagent consumed $0.990 over 20 turns but produced no grades or code ar
 | Total cost | N/A (interrupted session) |
 | Baseline | $6.79 (61 turns) |
 | Efficiency score | N/A |
+
+---
+
+## Lesson 14: IRC Client (Level 1, 15 pts)
+
+### Summary
+
+| # | Topic | Correct | Quality | Efficiency | Compile Fails | Score |
+|---|-------|---------|---------|------------|---------------|-------|
+| 1 | IRC Message Parser | 30 | A (+30) | +10 | 0 | 70 |
+| 2 | Prefix Parser | 30 | A (+30) | +10 | 0 | 70 |
+| 3 | TCP Connection & Registration | 30 | A (+30) | +10 | 0 | 70 |
+| 4 | PING/PONG Handler | 30 | A (+30) | +10 | 0 | 70 |
+| 5 | Display Incoming Messages | 30 | A (+30) | +10 | 0 | 70 |
+| 6 | User Input Commands | 30 | A (+30) | +10 | 0 | 70 |
+| 7 | Concurrent I/O | 25 | A (+30) | +10 | 1 | 65 |
+| 8 | NICK Command & Error Handling | 30 | A (+30) | +10 | 0 | 70 |
+| 9 | Channel State Tracking | 30 | A (+30) | +10 | 0 | 70 |
+| 10 | Private Messages (DMs) | 30 | A (+30) | +10 | 0 | 70 |
+| 11 | TOPIC and WHO Commands | 30 | A (+30) | +10 | 0 | 70 |
+| 12 | CLI Interface & Graceful Shutdown | 30 | A (+30) | +10 | 0 | 70 |
+
+**Average exercise score:** (70 x 11 + 65) / 12 = 835 / 12 = 69.58 / 80
+**Lesson score:** (69.58 / 80) x 15 = **13.05 / 15 pts**
+
+### Compile Failure Log
+
+| Exercise | Error | Fix | New/Known |
+|----------|-------|-----|-----------|
+| Q7 | `std.time.sleep` does not exist in 0.15.2 | Changed to `std.posix.nanosleep` | Known (gotchas.md) |
+
+### Reflection
+
+11/12 clean first compiles. Zero-allocation design throughout with fixed-size buffers. Q7's `std.time.sleep` failure was a known gotcha not caught by pre-flight search. No SKILL.md updates needed — all patterns well-documented.
+
+### Token Usage
+
+| Metric | Value |
+|--------|-------|
+| Phases | 2 (Q1-Q6, Q7-Q12) |
+| Total turns | N/A (interrupted session) |
+| Total cost | N/A (interrupted session) |
+| Baseline | $4.51 (47 turns) |
+| Efficiency score | N/A |
